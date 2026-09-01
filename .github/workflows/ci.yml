@@ -31,7 +31,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rustfmt-source
-          path: crates/**/*.rs
+          path: |
+            Cargo.lock
+            crates/**/*.rs
           retention-days: 1
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
