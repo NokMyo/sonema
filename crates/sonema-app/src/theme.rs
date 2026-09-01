@@ -14,6 +14,7 @@ pub const AMBER: Color32 = Color32::from_rgb(239, 177, 73);
 
 pub fn install(context: &egui::Context) {
     install_system_font(context);
+    context.set_theme(egui::Theme::Dark);
     let mut visuals = Visuals::dark();
     visuals.panel_fill = BG;
     visuals.window_fill = PANEL;
@@ -31,7 +32,7 @@ pub fn install(context: &egui::Context) {
     visuals.selection.stroke = Stroke::new(1.0, ACCENT);
     visuals.override_text_color = Some(TEXT);
     context.set_visuals(visuals);
-    context.style_mut(|style| {
+    context.style_mut_of(egui::Theme::Dark, |style| {
         style.spacing.item_spacing = egui::vec2(8.0, 7.0);
         style.spacing.button_padding = egui::vec2(10.0, 5.0);
         style.spacing.slider_width = 140.0;

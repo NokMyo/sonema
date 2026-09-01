@@ -353,6 +353,7 @@ impl SonemaApp {
     }
 
     fn workspace(&mut self, ui: &mut egui::Ui) {
+        let playhead = self.playhead();
         let inspector_width = if self.inspector_open { 286.0 } else { 0.0 };
         ui.horizontal(|ui| {
             let timeline_width = (ui.available_width() - inspector_width - 7.0).max(300.0);
@@ -363,7 +364,7 @@ impl SonemaApp {
                     &self.project,
                     &self.media,
                     &mut self.timeline,
-                    self.playhead(),
+                    playhead,
                     self.selected_track,
                     self.selected_clip,
                     snap,
@@ -1180,6 +1181,7 @@ impl SonemaApp {
     }
 
     fn handle_shortcuts(&mut self, context: &egui::Context) {
+        let wants_keyboard_input = context.egui_wants_keyboard_input();
         let command = context.input(|input| {
             let modifier = input.modifiers.command;
             let shift = input.modifiers.shift;
@@ -1201,15 +1203,15 @@ impl SonemaApp {
                 Some(UiCommand::Duplicate)
             } else if modifier && input.key_pressed(Key::T) {
                 Some(UiCommand::AddTrack)
-            } else if !context.wants_keyboard_input() && input.key_pressed(Key::Space) {
+            } else if !wants_keyboard_input && input.key_pressed(Key::Space) {
                 Some(UiCommand::PlayPause)
-            } else if !context.wants_keyboard_input() && input.key_pressed(Key::R) {
+            } else if !wants_keyboard_input && input.key_pressed(Key::R) {
                 Some(UiCommand::Record)
-            } else if !context.wants_keyboard_input() && input.key_pressed(Key::S) {
+            } else if !wants_keyboard_input && input.key_pressed(Key::S) {
                 Some(UiCommand::Split)
-            } else if !context.wants_keyboard_input() && input.key_pressed(Key::Delete) {
+            } else if !wants_keyboard_input && input.key_pressed(Key::Delete) {
                 Some(UiCommand::Delete)
-            } else if !context.wants_keyboard_input() && input.key_pressed(Key::Home) {
+            } else if !wants_keyboard_input && input.key_pressed(Key::Home) {
                 Some(UiCommand::Stop)
             } else {
                 None
@@ -1224,8 +1226,8 @@ impl SonemaApp {
                 .raw
                 .dropped_files
                 .iter()
-                .filter_map(|file| file.path.clone())
-                .collect::<Vec<_>>()
+                .map(|file| file.path().to_path_buf())
+                .collect::<Vec<PathBuf>>()
         });
         if paths.is_empty() {
             return;
