@@ -1,0 +1,9 @@
+/target/
+/release/
+*.log
+*.tmp
+*.sonema.tmp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

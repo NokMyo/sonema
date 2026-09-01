@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sonema-core",
+    "crates/sonema-dsp",
+    "crates/sonema-audio",
+    "crates/sonema-format",
+    "crates/sonema-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+authors = ["Febius <nokmyo>"]
+license-file = "LICENSE.md"
+repository = "https://github.com/NokMyo/sonema"
+
+[workspace.dependencies]
+anyhow = "1.0"
+cpal = "0.18"
+crossbeam-channel = "0.5"
+crossbeam-queue = "0.3"
+directories = "6.0"
+eframe = { version = "0.36", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence", "wayland", "x11"] }
+env_logger = "0.11"
+hound = "3.5"
+log = "0.4"
+parking_lot = "0.12"
+rfd = "0.16"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+symphonia = { version = "0.6", features = ["all"] }
+tempfile = "3.21"
+thiserror = "2.0"
+uuid = { version = "1.18", features = ["v4", "serde"] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+opt-level = 3
+strip = "symbols"
+
+[profile.dev.package."*"]
+opt-level = 2

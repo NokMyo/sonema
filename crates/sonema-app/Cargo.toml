@@ -1,0 +1,25 @@
+[package]
+name = "sonema-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "sonema"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+crossbeam-channel.workspace = true
+directories.workspace = true
+eframe.workspace = true
+env_logger.workspace = true
+log.workspace = true
+rfd.workspace = true
+sonema-audio = { path = "../sonema-audio" }
+sonema-core = { path = "../sonema-core" }
+sonema-format = { path = "../sonema-format" }
+uuid.workspace = true

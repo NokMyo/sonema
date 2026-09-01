@@ -1,0 +1,21 @@
+[package]
+name = "sonema-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license-file.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+cpal.workspace = true
+crossbeam-channel.workspace = true
+crossbeam-queue.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+sonema-core = { path = "../sonema-core" }
+sonema-dsp = { path = "../sonema-dsp" }
+symphonia.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
