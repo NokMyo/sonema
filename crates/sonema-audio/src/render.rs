@@ -264,10 +264,11 @@ pub fn render_offline(
     let project_step = project.sample_rate as f64 / sample_rate as f64;
     let mut project_frame = 0.0_f64;
     let mut peak = 0.0_f32;
-    for index in 0..output_frames {
+    let [left_channel, right_channel] = &mut channels;
+    for (left, right) in left_channel.iter_mut().zip(right_channel.iter_mut()) {
         let frame = session.process_frame(project_frame);
-        channels[0][index] = frame[0];
-        channels[1][index] = frame[1];
+        *left = frame[0];
+        *right = frame[1];
         peak = peak.max(frame[0].abs()).max(frame[1].abs());
         project_frame += project_step;
     }

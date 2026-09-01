@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering}
 use std::sync::Arc;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig};
+use cpal::{FromSample, SampleFormat, SizedSample, Stream, StreamConfig};
 use crossbeam_channel::{Receiver, Sender, bounded};
 use crossbeam_queue::ArrayQueue;
 use parking_lot::Mutex;
@@ -187,22 +187,21 @@ impl AudioThread {
     #[inline]
     fn next_frame(&mut self) -> [f32; 2] {
         let mut output = [0.0_f32; 2];
-        if self.shared.playing.load(Ordering::Acquire) {
-            if let Some(session) = &mut self.session {
-                if self.loop_enabled {
-                    if let Some((start, end)) = session.loop_region() {
-                        if self.playhead >= end {
-                            self.playhead = start;
-                            session.reset_dsp();
-                        }
-                    }
-                }
-                if self.playhead < session.duration_frames() as f64 {
-                    output = session.process_frame(self.playhead);
-                    self.playhead += session.project_frames_per_output_frame();
-                } else {
-                    self.shared.playing.store(false, Ordering::Release);
-                }
+        if self.shared.playing.load(Ordering::Acquire)
+            && let Some(session) = &mut self.session
+        {
+            if self.loop_enabled
+                && let Some((start, end)) = session.loop_region()
+                && self.playhead >= end
+            {
+                self.playhead = start;
+                session.reset_dsp();
+            }
+            if self.playhead < session.duration_frames() as f64 {
+                output = session.process_frame(self.playhead);
+                self.playhead += session.project_frames_per_output_frame();
+            } else {
+                self.shared.playing.store(false, Ordering::Release);
             }
         }
         let monitor = self.monitor.pop_frame();
@@ -213,14 +212,14 @@ impl AudioThread {
 
     fn finish_buffer(&self) {
         self.shared.playhead.store(self.playhead.max(0.0) as u64, Ordering::Release);
-        if self.shared.playing.load(Ordering::Acquire) {
-            if let Some(session) = &self.session {
-                for (index, (_, peak)) in session.track_meters().enumerate().take(MAX_METER_TRACKS) {
-                    self.shared.track_peaks[index].store(peak.to_bits(), Ordering::Relaxed);
-                }
-                self.shared.master_peak.store(session.master_meter().to_bits(), Ordering::Relaxed);
-                return;
+        if self.shared.playing.load(Ordering::Acquire)
+            && let Some(session) = &self.session
+        {
+            for (index, (_, peak)) in session.track_meters().enumerate().take(MAX_METER_TRACKS) {
+                self.shared.track_peaks[index].store(peak.to_bits(), Ordering::Relaxed);
             }
+            self.shared.master_peak.store(session.master_meter().to_bits(), Ordering::Relaxed);
+            return;
         }
         for meter in &self.shared.track_peaks {
             meter.store(0.0_f32.to_bits(), Ordering::Relaxed);
