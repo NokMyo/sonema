@@ -13,6 +13,7 @@ use thiserror::Error;
 use crate::{MediaPool, RealtimeSession};
 
 pub const MAX_METER_TRACKS: usize = 128;
+const RETIRED_SESSION_CAPACITY: usize = 128;
 
 #[derive(Debug, Clone)]
 pub struct DeviceStatus {
@@ -139,14 +140,28 @@ struct AudioThread {
     receiver: Receiver<EngineCommand>,
     shared: Arc<SharedState>,
     monitor: MonitorBus,
+    retired_sessions: Arc<ArrayQueue<Box<RealtimeSession>>>,
     session: Option<Box<RealtimeSession>>,
     playhead: f64,
     loop_enabled: bool,
 }
 
 impl AudioThread {
-    fn new(receiver: Receiver<EngineCommand>, shared: Arc<SharedState>, monitor: MonitorBus) -> Self {
-        Self { receiver, shared, monitor, session: None, playhead: 0.0, loop_enabled: false }
+    fn new(
+        receiver: Receiver<EngineCommand>,
+        shared: Arc<SharedState>,
+        monitor: MonitorBus,
+        retired_sessions: Arc<ArrayQueue<Box<RealtimeSession>>>,
+    ) -> Self {
+        Self {
+            receiver,
+            shared,
+            monitor,
+            retired_sessions,
+            session: None,
+            playhead: 0.0,
+            loop_enabled: false,
+        }
     }
 
     fn begin_buffer(&mut self) {
@@ -154,7 +169,14 @@ impl AudioThread {
             match command {
                 EngineCommand::SetSession(mut session) => {
                     session.reset_dsp();
-                    self.session = Some(session);
+                    if let Some(retired) = self.session.replace(session)
+                        && let Err(retired) = self.retired_sessions.push(retired)
+                    {
+                        // This queue is larger than the bounded command queue and is drained
+                        // before every UI-side update. If that invariant is ever broken, leaking
+                        // one graph is safer than deallocating it on the realtime callback.
+                        std::mem::forget(retired);
+                    }
                 }
                 EngineCommand::Play => {
                     if self.session.is_some() {
@@ -232,6 +254,7 @@ pub struct AudioEngine {
     sender: Sender<EngineCommand>,
     shared: Arc<SharedState>,
     monitor: MonitorBus,
+    retired_sessions: Arc<ArrayQueue<Box<RealtimeSession>>>,
     stream: Stream,
     status: DeviceStatus,
 }
@@ -254,7 +277,13 @@ impl AudioEngine {
         let (sender, receiver) = bounded(64);
         let shared = Arc::new(SharedState::new());
         let monitor = MonitorBus::new(status.sample_rate);
-        let thread = AudioThread::new(receiver, shared.clone(), monitor.clone());
+        let retired_sessions = Arc::new(ArrayQueue::new(RETIRED_SESSION_CAPACITY));
+        let thread = AudioThread::new(
+            receiver,
+            shared.clone(),
+            monitor.clone(),
+            retired_sessions.clone(),
+        );
         let error_shared = shared.clone();
 
         let channels = config.channels as usize;
@@ -349,7 +378,7 @@ impl AudioEngine {
         stream
             .play()
             .map_err(|error| AudioEngineError::StartStream(error.to_string()))?;
-        Ok(Self { sender, shared, monitor, stream, status })
+        Ok(Self { sender, shared, monitor, retired_sessions, stream, status })
     }
 
     pub fn set_project(
@@ -358,6 +387,7 @@ impl AudioEngine {
         media: &MediaPool,
         metronome: bool,
     ) -> Result<(), AudioEngineError> {
+        self.collect_retired_sessions();
         let session = RealtimeSession::compile(project, media, self.status.sample_rate, metronome)
             .map_err(|error| AudioEngineError::CompileSession(error.to_string()))?;
         self.send(EngineCommand::SetSession(Box::new(session)))
@@ -413,6 +443,11 @@ impl AudioEngine {
 
     pub fn take_error(&self) -> Option<String> {
         self.shared.last_error.lock().take()
+    }
+
+    pub fn collect_retired_sessions(&self) {
+        while self.retired_sessions.pop().is_some() {
+        }
     }
 
     fn send(&self, command: EngineCommand) -> Result<(), AudioEngineError> {

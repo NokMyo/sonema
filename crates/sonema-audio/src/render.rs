@@ -133,6 +133,7 @@ impl RealtimeSession {
     ) -> Result<Self> {
         project.validate().map_err(|error| anyhow!(error))?;
         let any_solo = project.any_soloed();
+        let duration_frames = project.duration_frames();
         let mut tracks = Vec::with_capacity(project.tracks.len());
         for track in &project.tracks {
             let mut clips = Vec::with_capacity(track.clips.len());
@@ -156,7 +157,7 @@ impl RealtimeSession {
         Ok(Self {
             project_rate: project.sample_rate,
             output_rate,
-            duration_frames: project.duration_frames(),
+            duration_frames,
             tracks,
             master_gain: db_to_gain(project.master.gain_db.clamp(-90.0, 12.0)),
             limiter: project
@@ -166,7 +167,13 @@ impl RealtimeSession {
             metronome,
             bpm: project.bpm,
             beats_per_bar: project.time_signature.numerator.max(1),
-            loop_region: project.loop_region.map(|range| (range.start as f64, range.end as f64)),
+            loop_region: Some(
+                project
+                    .loop_region
+                    .map_or((0.0, duration_frames as f64), |range| {
+                        (range.start as f64, range.end as f64)
+                    }),
+            ),
             master_peak: 0.0,
         })
     }
@@ -319,5 +326,12 @@ mod tests {
         let mix = render_offline(&project, &pool, 48_000, None).unwrap();
         assert_eq!(mix.channels[0][100], 0.0);
         assert!(mix.channels[0][300] > 0.1);
+    }
+
+    #[test]
+    fn session_defaults_loop_to_the_project_range() {
+        let project = Project::new("loop", 48_000);
+        let session = RealtimeSession::compile(&project, &MediaPool::new(), 48_000, false).unwrap();
+        assert_eq!(session.loop_region(), Some((0.0, project.duration_frames() as f64)));
     }
 }

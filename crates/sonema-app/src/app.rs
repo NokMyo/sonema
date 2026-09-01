@@ -17,7 +17,7 @@ use sonema_format::{
 };
 
 use crate::theme;
-use crate::timeline::{self, TimelineAction, TimelineState};
+use crate::timeline::{self, TimelineAction, TimelineState, TimelineView};
 
 const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -364,10 +364,12 @@ impl SonemaApp {
                     &self.project,
                     &self.media,
                     &mut self.timeline,
-                    playhead,
-                    self.selected_track,
-                    self.selected_clip,
-                    snap,
+                    TimelineView {
+                        playhead,
+                        selected_track: self.selected_track,
+                        selected_clip: self.selected_clip,
+                        snap,
+                    },
                 );
                 self.apply_timeline_actions(actions);
             });
@@ -560,10 +562,10 @@ impl SonemaApp {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("이전 작업의 자동 복구 파일이 있습니다.");
-                    if ui.button("복구").clicked() {
-                        if let Some(path) = self.recovery_path.clone() {
-                            self.request_action(PendingAction::OpenPath(path));
-                        }
+                    if ui.button("복구").clicked()
+                        && let Some(path) = self.recovery_path.clone()
+                    {
+                        self.request_action(PendingAction::OpenPath(path));
                     }
                     if ui.button("닫기").clicked() {
                         self.recovery_available = false;
@@ -1021,10 +1023,11 @@ impl SonemaApp {
         match Recorder::start(self.selected_input.as_deref(), monitor.clone()) {
             Ok(recorder) => {
                 let monitor_requested = self.project.track(track_id).is_some_and(|track| track.monitor);
-                if let Some(bus) = &monitor {
-                    if monitor_requested && !bus.set_enabled(true) {
-                        self.notice("입출력 샘플레이트가 달라 입력 모니터링을 껐습니다".into());
-                    }
+                if let Some(bus) = &monitor
+                    && monitor_requested
+                    && !bus.set_enabled(true)
+                {
+                    self.notice("입출력 샘플레이트가 달라 입력 모니터링을 껐습니다".into());
                 }
                 self.recording_channels.clear();
                 self.recording_channels.resize_with(recorder.channel_count(), Vec::new);
@@ -1151,10 +1154,10 @@ impl SonemaApp {
     }
 
     fn rebuild_engine(&mut self) {
-        if let Some(engine) = &self.engine {
-            if let Err(error) = engine.set_project(&self.project, &self.media, self.metronome) {
-                self.engine_problem = Some(error.to_string());
-            }
+        if let Some(engine) = &self.engine
+            && let Err(error) = engine.set_project(&self.project, &self.media, self.metronome)
+        {
+            self.engine_problem = Some(error.to_string());
         }
     }
 
@@ -1452,6 +1455,7 @@ impl eframe::App for SonemaApp {
         self.dialogs(&context);
 
         if let Some(engine) = &self.engine {
+            engine.collect_retired_sessions();
             if let Some(error) = engine.take_error() {
                 self.error(format!("오디오 장치 오류: {error}"));
             }
@@ -1476,10 +1480,10 @@ impl eframe::App for SonemaApp {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        if self.dirty {
-            if let Some(path) = &self.recovery_path {
-                let _ = save_project(path, &self.project, &self.media);
-            }
+        if self.dirty
+            && let Some(path) = &self.recovery_path
+        {
+            let _ = save_project(path, &self.project, &self.media);
         }
     }
 }

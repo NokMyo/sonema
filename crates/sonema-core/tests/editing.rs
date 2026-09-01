@@ -61,3 +61,30 @@ fn beat_snap_uses_project_tempo() {
     // At 120 BPM, a quarter beat is 6,000 frames.
     assert_eq!(SnapMode::BeatDivision(4).snap(&project, 5_700), 6_000);
 }
+
+#[test]
+fn extending_a_trim_never_invents_source_audio() {
+    let (mut project, _, clip_id) = project_with_clip();
+    let right_id = project.split_clip(clip_id, 96_000).unwrap();
+    project.trim_clip_start(right_id, 0).unwrap();
+    let (_, right) = project.clip(right_id).unwrap();
+    assert_eq!(right.start_frame, 48_000);
+    assert_eq!(right.source_in, 0);
+    assert_eq!(project.clip_end_frame(right), Some(144_000));
+}
+
+#[test]
+fn validation_rejects_non_finite_mixer_values() {
+    let (mut project, _, _) = project_with_clip();
+    project.tracks[0].gain_db = f32::NAN;
+    assert!(project.validate().is_err());
+}
+
+#[test]
+fn validation_rejects_duplicate_clip_ids() {
+    let (mut project, _, clip_id) = project_with_clip();
+    let mut duplicate = project.clip(clip_id).unwrap().1.clone();
+    duplicate.start_frame += 96_000;
+    project.tracks[0].clips.push(duplicate);
+    assert!(project.validate().is_err());
+}

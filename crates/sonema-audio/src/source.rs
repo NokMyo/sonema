@@ -35,7 +35,7 @@ impl AudioSource {
         id: MediaId,
         name: impl Into<String>,
         sample_rate: u32,
-        channels: Vec<Vec<f32>>,
+        mut channels: Vec<Vec<f32>>,
     ) -> Result<Self, SourceError> {
         if !(8_000..=768_000).contains(&sample_rate) {
             return Err(SourceError::InvalidSampleRate);
@@ -48,6 +48,13 @@ impl AudioSource {
         }
         if channels.len() > 64 || channels.iter().any(|channel| channel.len() != frames) {
             return Err(SourceError::UnequalChannelLengths);
+        }
+        for channel in &mut channels {
+            for sample in channel {
+                if !sample.is_finite() {
+                    *sample = 0.0;
+                }
+            }
         }
         let peaks = calculate_peaks(&channels, 4_096);
         Ok(Self { id, name: name.into(), sample_rate, channels, peaks })
@@ -126,5 +133,17 @@ mod tests {
         .unwrap();
         assert!((source.sample_linear(0, 0.5) - 0.5).abs() < 1.0e-6);
         assert!((source.sample_linear(0, 1.5) - 0.5).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn non_finite_source_samples_are_silenced() {
+        let source = AudioSource::new(
+            Uuid::new_v4(),
+            "invalid",
+            48_000,
+            vec![vec![f32::NAN, f32::INFINITY, -f32::INFINITY]],
+        )
+        .unwrap();
+        assert_eq!(source.channels[0], vec![0.0; 3]);
     }
 }

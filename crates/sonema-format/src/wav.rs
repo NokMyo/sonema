@@ -76,8 +76,8 @@ pub fn write_wav(
                     writer.write_sample(to_pcm16(right, options.dither, &mut dither))?;
                 }
                 WavBitDepth::Pcm24 => {
-                    writer.write_sample(to_pcm24(left))?;
-                    writer.write_sample(to_pcm24(right))?;
+                    writer.write_sample(to_pcm24(left, options.dither, &mut dither))?;
+                    writer.write_sample(to_pcm24(right, options.dither, &mut dither))?;
                 }
                 WavBitDepth::Float32 => {
                     writer.write_sample(sanitize(left))?;
@@ -99,8 +99,9 @@ fn to_pcm16(sample: f32, with_dither: bool, dither: &mut Dither) -> i16 {
     (sanitize(sample + noise) * 32_767.0).round() as i16
 }
 
-fn to_pcm24(sample: f32) -> i32 {
-    (sanitize(sample) * 8_388_607.0).round() as i32
+fn to_pcm24(sample: f32, with_dither: bool, dither: &mut Dither) -> i32 {
+    let noise = if with_dither { dither.tpdf() / 8_388_608.0 } else { 0.0 };
+    (sanitize(sample + noise) * 8_388_607.0).round() as i32
 }
 
 fn sanitize(sample: f32) -> f32 {

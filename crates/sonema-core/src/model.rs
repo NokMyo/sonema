@@ -144,14 +144,50 @@ impl Project {
         if !(MIN_BPM..=MAX_BPM).contains(&self.bpm) {
             return Err("BPM이 지원 범위를 벗어났습니다".into());
         }
-        if self.tracks.len() > 1_024 || self.media.len() > 65_536 {
+        if self.tracks.is_empty() || self.tracks.len() > 1_024 || self.media.len() > 65_536 {
             return Err("프로젝트 항목 수가 안전 한도를 넘었습니다".into());
         }
+        if !(1..=32).contains(&self.time_signature.numerator)
+            || !(1..=32).contains(&self.time_signature.denominator)
+            || !self.time_signature.denominator.is_power_of_two()
+        {
+            return Err("박자표가 올바르지 않습니다".into());
+        }
+        if !finite_in(self.master.gain_db, -90.0, 12.0)
+            || !finite_in(self.master.limiter_ceiling_db, -12.0, 0.0)
+        {
+            return Err("마스터 설정이 올바르지 않습니다".into());
+        }
+        for (id, media) in &self.media {
+            if *id != media.id
+                || id.is_nil()
+                || !(8_000..=768_000).contains(&media.sample_rate)
+                || media.channels == 0
+                || media.channels > 64
+                || media.frames == 0
+            {
+                return Err(format!("{} 미디어 정보가 올바르지 않습니다", media.name));
+            }
+        }
+        let mut track_ids = std::collections::BTreeSet::new();
+        let mut clip_ids = std::collections::BTreeSet::new();
         for track in &self.tracks {
+            if track.id.is_nil() || !track_ids.insert(track.id) {
+                return Err("트랙 식별자가 중복되었거나 올바르지 않습니다".into());
+            }
+            if !finite_in(track.gain_db, -90.0, 12.0)
+                || !finite_in(track.pan, -1.0, 1.0)
+                || !channel_strip_is_valid(&track.effects)
+            {
+                return Err(format!("{} 트랙 설정이 올바르지 않습니다", track.name));
+            }
             if track.clips.len() > 100_000 {
                 return Err(format!("{} 트랙에 클립이 너무 많습니다", track.name));
             }
             for clip in &track.clips {
+                if clip.id.is_nil() || !clip_ids.insert(clip.id) {
+                    return Err("클립 식별자가 중복되었거나 올바르지 않습니다".into());
+                }
                 let media = self
                     .media
                     .get(&clip.media_id)
@@ -159,10 +195,46 @@ impl Project {
                 if clip.source_in >= clip.source_out || clip.source_out > media.frames {
                     return Err(format!("{} 클립의 소스 범위가 올바르지 않습니다", clip.name));
                 }
+                let duration = self
+                    .clip_duration_frames(clip)
+                    .ok_or_else(|| format!("{} 클립 길이를 계산할 수 없습니다", clip.name))?;
+                if !finite_in(clip.gain_db, -90.0, 24.0)
+                    || clip.fade_in > duration
+                    || clip.fade_out > duration
+                {
+                    return Err(format!("{} 클립 설정이 올바르지 않습니다", clip.name));
+                }
             }
+        }
+        if let Some(range) = self.loop_region
+            && (range.is_empty() || range.end > self.duration_frames())
+        {
+            return Err("루프 구간이 올바르지 않습니다".into());
         }
         Ok(())
     }
+}
+
+fn finite_in(value: f32, minimum: f32, maximum: f32) -> bool {
+    value.is_finite() && (minimum..=maximum).contains(&value)
+}
+
+fn channel_strip_is_valid(strip: &ChannelStrip) -> bool {
+    finite_in(strip.high_pass.frequency_hz, 10.0, 2_000.0)
+        && eq_band_is_valid(&strip.low_eq)
+        && eq_band_is_valid(&strip.mid_eq)
+        && eq_band_is_valid(&strip.high_eq)
+        && finite_in(strip.compressor.threshold_db, -72.0, 0.0)
+        && finite_in(strip.compressor.ratio, 1.0, 30.0)
+        && finite_in(strip.compressor.attack_ms, 0.05, 500.0)
+        && finite_in(strip.compressor.release_ms, 2.0, 5_000.0)
+        && finite_in(strip.compressor.makeup_db, -12.0, 24.0)
+}
+
+fn eq_band_is_valid(band: &EqBandSettings) -> bool {
+    finite_in(band.frequency_hz, 10.0, 192_000.0)
+        && finite_in(band.gain_db, -24.0, 24.0)
+        && finite_in(band.q, 0.1, 18.0)
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -277,8 +349,8 @@ impl Clip {
             source_in: 0,
             source_out: source_frames.max(1),
             gain_db: 0.0,
-            fade_in: 64,
-            fade_out: 64,
+            fade_in: 0,
+            fade_out: 0,
         }
     }
 }

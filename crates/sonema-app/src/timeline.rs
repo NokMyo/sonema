@@ -38,7 +38,6 @@ enum DragKind {
 struct DragPreview {
     clip: ClipId,
     kind: DragKind,
-    original_track: TrackId,
     original_start: u64,
     original_end: u64,
     preview_track: TrackId,
@@ -50,6 +49,14 @@ struct DragPreview {
 pub struct TimelineState {
     pub pixels_per_second: f32,
     drag: Option<DragPreview>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TimelineView {
+    pub playhead: u64,
+    pub selected_track: Option<TrackId>,
+    pub selected_clip: Option<ClipId>,
+    pub snap: SnapMode,
 }
 
 impl Default for TimelineState {
@@ -73,11 +80,9 @@ pub fn show(
     project: &Project,
     media: &MediaPool,
     state: &mut TimelineState,
-    playhead: u64,
-    selected_track: Option<TrackId>,
-    selected_clip: Option<ClipId>,
-    snap: SnapMode,
+    view: TimelineView,
 ) -> Vec<TimelineAction> {
+    let TimelineView { playhead, selected_track, selected_clip, snap } = view;
     let mut actions = Vec::new();
     let duration_seconds = project.frames_to_seconds(project.duration_frames()) + 30.0;
     let timeline_seconds = duration_seconds.max(180.0);
@@ -247,14 +252,14 @@ pub fn show(
                 &mut actions,
             );
 
-            if world_response.clicked() {
-                if let Some(pointer) = world_response.interact_pointer_pos() {
-                    let timeline_left = world_rect.left() + HEADER_WIDTH;
-                    if pointer.x >= timeline_left {
-                        let seconds = ((pointer.x - timeline_left) / state.pixels_per_second).max(0.0);
-                        let frame = project.seconds_to_frames(seconds as f64);
-                        actions.push(TimelineAction::Seek(snap.snap(project, frame)));
-                    }
+            if world_response.clicked()
+                && let Some(pointer) = world_response.interact_pointer_pos()
+            {
+                let timeline_left = world_rect.left() + HEADER_WIDTH;
+                if pointer.x >= timeline_left {
+                    let seconds = ((pointer.x - timeline_left) / state.pixels_per_second).max(0.0);
+                    let frame = project.seconds_to_frames(seconds as f64);
+                    actions.push(TimelineAction::Seek(snap.snap(project, frame)));
                 }
             }
         });
@@ -280,7 +285,6 @@ fn begin_or_update_drag(
         state.drag = Some(DragPreview {
             clip,
             kind,
-            original_track: track,
             original_start,
             original_end,
             preview_track: track,

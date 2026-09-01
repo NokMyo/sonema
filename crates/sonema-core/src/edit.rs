@@ -70,7 +70,11 @@ impl Project {
         start_frame: u64,
     ) -> Result<ClipId, EditError> {
         let media = self.media.get(&media_id).ok_or(EditError::MediaNotFound)?.clone();
-        let clip = Clip::new(media_id, media.name, start_frame, media.frames);
+        let duration = scale_frames(media.frames, media.sample_rate, self.sample_rate).max(1);
+        let mut clip = Clip::new(media_id, media.name, start_frame, media.frames);
+        let default_fade = 64.min(duration / 2);
+        clip.fade_in = default_fade;
+        clip.fade_out = default_fade;
         let id = clip.id;
         let track = self.track_mut(track_id).ok_or(EditError::TrackNotFound)?;
         track.clips.push(clip);
@@ -173,6 +177,12 @@ impl Project {
         let original = self.tracks[track_index].clips[clip_index].clone();
         let media = self.media.get(&original.media_id).ok_or(EditError::MediaNotFound)?;
         let end = self.clip_end_frame(&original).ok_or(EditError::MediaNotFound)?;
+        let available_before = scale_frames(
+            original.source_in,
+            media.sample_rate,
+            self.sample_rate,
+        );
+        let new_start = new_start.max(original.start_frame.saturating_sub(available_before));
         if new_start.saturating_add(MIN_CLIP_TIMELINE_FRAMES) >= end {
             return Err(EditError::ClipTooShort);
         }
