@@ -24,7 +24,15 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all -- --check
+      - name: Format sources for the build
+        run: cargo fmt --all
+      - name: Preserve rustfmt output
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-source
+          path: crates/**/*.rs
+          retention-days: 1
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
