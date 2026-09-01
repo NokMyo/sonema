@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering}
 use std::sync::Arc;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, Stream};
+use cpal::{FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig};
 use crossbeam_channel::{Receiver, Sender, bounded};
 use crossbeam_queue::ArrayQueue;
 use parking_lot::Mutex;
@@ -249,7 +249,7 @@ impl AudioEngine {
         let config = supported.config();
         let status = DeviceStatus {
             output_name,
-            sample_rate: config.sample_rate.0,
+            sample_rate: config.sample_rate,
             channels: config.channels,
         };
         let (sender, receiver) = bounded(64);
@@ -257,39 +257,93 @@ impl AudioEngine {
         let monitor = MonitorBus::new(status.sample_rate);
         let thread = AudioThread::new(receiver, shared.clone(), monitor.clone());
         let error_shared = shared.clone();
-        let error_callback = move |error: cpal::StreamError| {
-            *error_shared.last_error.lock() = Some(error.to_string());
-        };
 
         let channels = config.channels as usize;
         let stream = match sample_format {
-            SampleFormat::F32 => {
-                let mut thread = thread;
-                device.build_output_stream::<f32, _, _>(
-                    &config,
-                    move |data, _| fill_f32(data, channels, &mut thread),
-                    error_callback,
-                    None,
-                )
-            }
-            SampleFormat::I16 => {
-                let mut thread = thread;
-                device.build_output_stream::<i16, _, _>(
-                    &config,
-                    move |data, _| fill_i16(data, channels, &mut thread),
-                    error_callback,
-                    None,
-                )
-            }
-            SampleFormat::U16 => {
-                let mut thread = thread;
-                device.build_output_stream::<u16, _, _>(
-                    &config,
-                    move |data, _| fill_u16(data, channels, &mut thread),
-                    error_callback,
-                    None,
-                )
-            }
+            SampleFormat::F32 => build_output_stream::<f32>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::F64 => build_output_stream::<f64>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::I8 => build_output_stream::<i8>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::I16 => build_output_stream::<i16>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::I24 => build_output_stream::<cpal::I24>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::I32 => build_output_stream::<i32>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::I64 => build_output_stream::<i64>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::U8 => build_output_stream::<u8>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::U16 => build_output_stream::<u16>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::U24 => build_output_stream::<cpal::U24>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::U32 => build_output_stream::<u32>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
+            SampleFormat::U64 => build_output_stream::<u64>(
+                &device,
+                config,
+                channels,
+                thread,
+                error_shared,
+            ),
             other => return Err(AudioEngineError::UnsupportedSampleFormat(other.to_string())),
         }
         .map_err(|error| AudioEngineError::BuildStream(error.to_string()))?;
@@ -373,29 +427,34 @@ impl Drop for AudioEngine {
     }
 }
 
-fn fill_f32(data: &mut [f32], channels: usize, thread: &mut AudioThread) {
-    thread.begin_buffer();
-    for frame in data.chunks_mut(channels.max(1)) {
-        write_frame(frame, thread.next_frame(), |sample| sample);
-    }
-    thread.finish_buffer();
+fn build_output_stream<T>(
+    device: &cpal::Device,
+    config: StreamConfig,
+    channels: usize,
+    mut thread: AudioThread,
+    error_shared: Arc<SharedState>,
+) -> Result<Stream, cpal::Error>
+where
+    T: SizedSample + FromSample<f32>,
+{
+    device.build_output_stream::<T, _, _>(
+        config,
+        move |data, _| fill_output(data, channels, &mut thread),
+        move |error: cpal::Error| {
+            *error_shared.last_error.lock() = Some(error.to_string());
+        },
+        None,
+    )
 }
 
-fn fill_i16(data: &mut [i16], channels: usize, thread: &mut AudioThread) {
+fn fill_output<T>(data: &mut [T], channels: usize, thread: &mut AudioThread)
+where
+    T: SizedSample + FromSample<f32>,
+{
     thread.begin_buffer();
     for frame in data.chunks_mut(channels.max(1)) {
         write_frame(frame, thread.next_frame(), |sample| {
-            (sample.clamp(-1.0, 1.0) * i16::MAX as f32).round() as i16
-        });
-    }
-    thread.finish_buffer();
-}
-
-fn fill_u16(data: &mut [u16], channels: usize, thread: &mut AudioThread) {
-    thread.begin_buffer();
-    for frame in data.chunks_mut(channels.max(1)) {
-        write_frame(frame, thread.next_frame(), |sample| {
-            ((sample.clamp(-1.0, 1.0) * 0.5 + 0.5) * u16::MAX as f32).round() as u16
+            T::from_sample(sample.clamp(-1.0, 1.0))
         });
     }
     thread.finish_buffer();

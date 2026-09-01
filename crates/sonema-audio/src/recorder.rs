@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, Stream};
+use cpal::{FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig};
 use crossbeam_queue::ArrayQueue;
 use parking_lot::Mutex;
 use thiserror::Error;
@@ -83,7 +83,7 @@ impl Recorder {
         let sample_format = supported.sample_format();
         let config = supported.config();
         let channels = config.channels as usize;
-        let sample_rate = config.sample_rate.0;
+        let sample_rate = config.sample_rate;
         let queue = Arc::new(ArrayQueue::new(sample_rate as usize * channels.max(1) * 8));
         let dropped_samples = Arc::new(AtomicU64::new(0));
         let last_error = Arc::new(Mutex::new(None));
@@ -91,41 +91,118 @@ impl Recorder {
             bus.configure_input(sample_rate, channels);
         }
 
+        let capture_queue = queue.clone();
+        let capture_dropped = dropped_samples.clone();
         let error_slot = last_error.clone();
-        let error_callback = move |error: cpal::StreamError| {
-            *error_slot.lock() = Some(error.to_string());
-        };
         let stream = match sample_format {
-            SampleFormat::F32 => {
-                let queue = queue.clone();
-                let dropped = dropped_samples.clone();
-                device.build_input_stream::<f32, _, _>(
-                    &config,
-                    move |data, _| capture_f32(data, channels, &queue, &dropped, monitor.as_ref()),
-                    error_callback,
-                    None,
-                )
-            }
-            SampleFormat::I16 => {
-                let queue = queue.clone();
-                let dropped = dropped_samples.clone();
-                device.build_input_stream::<i16, _, _>(
-                    &config,
-                    move |data, _| capture_i16(data, channels, &queue, &dropped, monitor.as_ref()),
-                    error_callback,
-                    None,
-                )
-            }
-            SampleFormat::U16 => {
-                let queue = queue.clone();
-                let dropped = dropped_samples.clone();
-                device.build_input_stream::<u16, _, _>(
-                    &config,
-                    move |data, _| capture_u16(data, channels, &queue, &dropped, monitor.as_ref()),
-                    error_callback,
-                    None,
-                )
-            }
+            SampleFormat::F32 => build_input_stream::<f32>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::F64 => build_input_stream::<f64>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::I8 => build_input_stream::<i8>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::I16 => build_input_stream::<i16>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::I24 => build_input_stream::<cpal::I24>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::I32 => build_input_stream::<i32>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::I64 => build_input_stream::<i64>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::U8 => build_input_stream::<u8>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::U16 => build_input_stream::<u16>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::U24 => build_input_stream::<cpal::U24>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::U32 => build_input_stream::<u32>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
+            SampleFormat::U64 => build_input_stream::<u64>(
+                &device,
+                config,
+                channels,
+                capture_queue,
+                capture_dropped,
+                monitor,
+                error_slot,
+            ),
             other => return Err(RecorderError::UnsupportedSampleFormat(other.to_string())),
         }
         .map_err(|error| RecorderError::BuildStream(error.to_string()))?;
@@ -172,46 +249,40 @@ impl Recorder {
     }
 }
 
-fn capture_f32(
-    data: &[f32],
+fn build_input_stream<T>(
+    device: &cpal::Device,
+    config: StreamConfig,
     channels: usize,
-    queue: &ArrayQueue<f32>,
-    dropped: &AtomicU64,
-    monitor: Option<&MonitorBus>,
-) {
-    capture(data, channels, queue, dropped, monitor, |sample| sample);
+    queue: Arc<ArrayQueue<f32>>,
+    dropped: Arc<AtomicU64>,
+    monitor: Option<MonitorBus>,
+    error_slot: Arc<Mutex<Option<String>>>,
+) -> Result<Stream, cpal::Error>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
+    device.build_input_stream::<T, _, _>(
+        config,
+        move |data, _| capture(data, channels, &queue, &dropped, monitor.as_ref()),
+        move |error: cpal::Error| {
+            *error_slot.lock() = Some(error.to_string());
+        },
+        None,
+    )
 }
 
-fn capture_i16(
-    data: &[i16],
-    channels: usize,
-    queue: &ArrayQueue<f32>,
-    dropped: &AtomicU64,
-    monitor: Option<&MonitorBus>,
-) {
-    capture(data, channels, queue, dropped, monitor, |sample| sample as f32 / 32_768.0);
-}
-
-fn capture_u16(
-    data: &[u16],
-    channels: usize,
-    queue: &ArrayQueue<f32>,
-    dropped: &AtomicU64,
-    monitor: Option<&MonitorBus>,
-) {
-    capture(data, channels, queue, dropped, monitor, |sample| {
-        sample as f32 / 65_535.0 * 2.0 - 1.0
-    });
-}
-
-fn capture<T: Copy>(
+fn capture<T>(
     data: &[T],
     channels: usize,
     queue: &ArrayQueue<f32>,
     dropped: &AtomicU64,
     monitor: Option<&MonitorBus>,
-    convert: impl Fn(T) -> f32,
-) {
+)
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
     let channels = channels.max(1);
     for frame in data.chunks_exact(channels) {
         if queue.capacity().saturating_sub(queue.len()) < channels {
@@ -219,7 +290,7 @@ fn capture<T: Copy>(
             continue;
         }
         for &sample in frame {
-            let sample = convert(sample);
+            let sample = f32::from_sample(sample);
             let sample = if sample.is_finite() { sample } else { 0.0 };
             let _ = queue.push(sample);
             if let Some(bus) = monitor {

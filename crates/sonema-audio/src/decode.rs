@@ -46,6 +46,7 @@ pub fn decode_audio_file(path: &Path) -> Result<AudioSource> {
         .ok_or_else(|| anyhow!("샘플레이트를 확인할 수 없습니다"))?;
     let channel_count = codec_parameters
         .channels
+        .as_ref()
         .map(|channels| channels.count())
         .ok_or_else(|| anyhow!("채널 구성을 확인할 수 없습니다"))?;
     if channel_count == 0 || channel_count > 64 {

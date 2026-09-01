@@ -26,6 +26,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Format sources for the build
         run: cargo fmt --all
+      - name: Resolve the reproducible dependency set
+        run: cargo generate-lockfile
       - name: Preserve rustfmt output
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
