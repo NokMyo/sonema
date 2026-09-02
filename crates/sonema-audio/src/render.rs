@@ -305,12 +305,20 @@ pub fn render_offline(
         }
         peak *= gain;
     }
-    Ok(OfflineMix { sample_rate, channels, peak })
+    Ok(OfflineMix {
+        sample_rate,
+        channels,
+        peak,
+    })
 }
 
 fn balance_pan(pan: f32) -> (f32, f32) {
     let pan = pan.clamp(-1.0, 1.0);
-    if pan < 0.0 { (1.0, (1.0 + pan).sqrt()) } else { ((1.0 - pan).sqrt(), 1.0) }
+    if pan < 0.0 {
+        (1.0, (1.0 + pan).sqrt())
+    } else {
+        ((1.0 - pan).sqrt(), 1.0)
+    }
 }
 
 #[cfg(test)]
@@ -323,9 +331,8 @@ mod tests {
     fn offline_render_respects_clip_position() {
         let mut project = Project::new("render", 48_000);
         let media_id = Uuid::new_v4();
-        let source = Arc::new(
-            AudioSource::new(media_id, "tone", 48_000, vec![vec![0.5; 480]]).unwrap(),
-        );
+        let source =
+            Arc::new(AudioSource::new(media_id, "tone", 48_000, vec![vec![0.5; 480]]).unwrap());
         project
             .register_media(MediaInfo {
                 id: media_id,
@@ -349,7 +356,10 @@ mod tests {
     fn session_defaults_loop_to_the_project_range() {
         let project = Project::new("loop", 48_000);
         let session = RealtimeSession::compile(&project, &MediaPool::new(), 48_000, false).unwrap();
-        assert_eq!(session.loop_region(), Some((0.0, project.duration_frames() as f64)));
+        assert_eq!(
+            session.loop_region(),
+            Some((0.0, project.duration_frames() as f64))
+        );
     }
 
     #[test]

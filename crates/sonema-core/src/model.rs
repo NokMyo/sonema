@@ -78,9 +78,13 @@ impl Project {
     }
 
     pub fn clip(&self, id: ClipId) -> Option<(&Track, &Clip)> {
-        self.tracks
-            .iter()
-            .find_map(|track| track.clips.iter().find(|clip| clip.id == id).map(|clip| (track, clip)))
+        self.tracks.iter().find_map(|track| {
+            track
+                .clips
+                .iter()
+                .find(|clip| clip.id == id)
+                .map(|clip| (track, clip))
+        })
     }
 
     pub fn clip_mut(&mut self, id: ClipId) -> Option<&mut Clip> {
@@ -90,13 +94,16 @@ impl Project {
     }
 
     pub fn clip_location(&self, id: ClipId) -> Option<(usize, usize)> {
-        self.tracks.iter().enumerate().find_map(|(track_index, track)| {
-            track
-                .clips
-                .iter()
-                .position(|clip| clip.id == id)
-                .map(|clip_index| (track_index, clip_index))
-        })
+        self.tracks
+            .iter()
+            .enumerate()
+            .find_map(|(track_index, track)| {
+                track
+                    .clips
+                    .iter()
+                    .position(|clip| clip.id == id)
+                    .map(|clip_index| (track_index, clip_index))
+            })
     }
 
     pub fn duration_frames(&self) -> u64 {
@@ -115,7 +122,10 @@ impl Project {
     }
 
     pub fn clip_end_frame(&self, clip: &Clip) -> Option<u64> {
-        Some(clip.start_frame.saturating_add(self.clip_duration_frames(clip)?))
+        Some(
+            clip.start_frame
+                .saturating_add(self.clip_duration_frames(clip)?),
+        )
     }
 
     pub fn seconds_to_frames(&self, seconds: f64) -> u64 {
@@ -136,7 +146,10 @@ impl Project {
 
     pub fn validate(&self) -> Result<(), String> {
         if self.format_version == 0 || self.format_version > PROJECT_FORMAT_VERSION {
-            return Err(format!("지원하지 않는 프로젝트 형식 {}", self.format_version));
+            return Err(format!(
+                "지원하지 않는 프로젝트 형식 {}",
+                self.format_version
+            ));
         }
         if !(8_000..=384_000).contains(&self.sample_rate) {
             return Err("프로젝트 샘플레이트가 올바르지 않습니다".into());
@@ -193,7 +206,10 @@ impl Project {
                     .get(&clip.media_id)
                     .ok_or_else(|| format!("{} 클립의 미디어가 없습니다", clip.name))?;
                 if clip.source_in >= clip.source_out || clip.source_out > media.frames {
-                    return Err(format!("{} 클립의 소스 범위가 올바르지 않습니다", clip.name));
+                    return Err(format!(
+                        "{} 클립의 소스 범위가 올바르지 않습니다",
+                        clip.name
+                    ));
                 }
                 let duration = self
                     .clip_duration_frames(clip)
@@ -245,7 +261,10 @@ pub struct TimeSignature {
 
 impl Default for TimeSignature {
     fn default() -> Self {
-        Self { numerator: 4, denominator: 4 }
+        Self {
+            numerator: 4,
+            denominator: 4,
+        }
     }
 }
 
@@ -340,7 +359,12 @@ pub struct Clip {
 }
 
 impl Clip {
-    pub fn new(media_id: MediaId, name: impl Into<String>, start_frame: u64, source_frames: u64) -> Self {
+    pub fn new(
+        media_id: MediaId,
+        name: impl Into<String>,
+        start_frame: u64,
+        source_frames: u64,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             media_id,
@@ -375,7 +399,11 @@ pub struct MasterSettings {
 
 impl Default for MasterSettings {
     fn default() -> Self {
-        Self { gain_db: 0.0, limiter_enabled: true, limiter_ceiling_db: -0.3 }
+        Self {
+            gain_db: 0.0,
+            limiter_enabled: true,
+            limiter_ceiling_db: -0.3,
+        }
     }
 }
 
@@ -408,7 +436,10 @@ pub struct HighPassSettings {
 
 impl Default for HighPassSettings {
     fn default() -> Self {
-        Self { enabled: false, frequency_hz: 80.0 }
+        Self {
+            enabled: false,
+            frequency_hz: 80.0,
+        }
     }
 }
 
@@ -430,15 +461,33 @@ pub struct EqBandSettings {
 
 impl EqBandSettings {
     pub fn low_shelf(frequency_hz: f32) -> Self {
-        Self { enabled: false, kind: EqKind::LowShelf, frequency_hz, gain_db: 0.0, q: 0.707 }
+        Self {
+            enabled: false,
+            kind: EqKind::LowShelf,
+            frequency_hz,
+            gain_db: 0.0,
+            q: 0.707,
+        }
     }
 
     pub fn peak(frequency_hz: f32) -> Self {
-        Self { enabled: false, kind: EqKind::Peak, frequency_hz, gain_db: 0.0, q: 1.0 }
+        Self {
+            enabled: false,
+            kind: EqKind::Peak,
+            frequency_hz,
+            gain_db: 0.0,
+            q: 1.0,
+        }
     }
 
     pub fn high_shelf(frequency_hz: f32) -> Self {
-        Self { enabled: false, kind: EqKind::HighShelf, frequency_hz, gain_db: 0.0, q: 0.707 }
+        Self {
+            enabled: false,
+            kind: EqKind::HighShelf,
+            frequency_hz,
+            gain_db: 0.0,
+            q: 0.707,
+        }
     }
 }
 
@@ -466,7 +515,11 @@ impl Default for CompressorSettings {
 }
 
 pub fn db_to_gain(db: f32) -> f32 {
-    if db <= -90.0 { 0.0 } else { 10.0_f32.powf(db / 20.0) }
+    if db <= -90.0 {
+        0.0
+    } else {
+        10.0_f32.powf(db / 20.0)
+    }
 }
 
 pub fn gain_to_db(gain: f32) -> f32 {
@@ -491,5 +544,9 @@ fn unix_ms() -> u64 {
 
 fn clean_name(value: String, fallback: &str) -> String {
     let trimmed = value.trim();
-    if trimmed.is_empty() { fallback.into() } else { trimmed.chars().take(160).collect() }
+    if trimmed.is_empty() {
+        fallback.into()
+    } else {
+        trimmed.chars().take(160).collect()
+    }
 }

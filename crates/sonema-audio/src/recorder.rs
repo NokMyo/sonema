@@ -56,10 +56,18 @@ pub fn list_input_devices() -> Result<Vec<InputDevice>, RecorderError> {
     let mut result = devices
         .map(|device| {
             let name = device.to_string();
-            InputDevice { is_default: default_name.as_deref() == Some(name.as_str()), name }
+            InputDevice {
+                is_default: default_name.as_deref() == Some(name.as_str()),
+                name,
+            }
         })
         .collect::<Vec<_>>();
-    result.sort_by(|left, right| right.is_default.cmp(&left.is_default).then(left.name.cmp(&right.name)));
+    result.sort_by(|left, right| {
+        right
+            .is_default
+            .cmp(&left.is_default)
+            .then(left.name.cmp(&right.name))
+    });
     Ok(result)
 }
 
@@ -75,7 +83,8 @@ impl Recorder {
                 .find(|device| device.to_string() == requested)
                 .ok_or(RecorderError::NoInputDevice)?
         } else {
-            host.default_input_device().ok_or(RecorderError::NoInputDevice)?
+            host.default_input_device()
+                .ok_or(RecorderError::NoInputDevice)?
         };
         let supported = device
             .default_input_config()
@@ -209,7 +218,14 @@ impl Recorder {
         stream
             .play()
             .map_err(|error| RecorderError::StartStream(error.to_string()))?;
-        Ok(Self { stream, queue, channels, sample_rate, dropped_samples, last_error })
+        Ok(Self {
+            stream,
+            queue,
+            channels,
+            sample_rate,
+            dropped_samples,
+            last_error,
+        })
     }
 
     pub fn drain_into(&self, channels: &mut Vec<Vec<f32>>) -> usize {
@@ -278,8 +294,7 @@ fn capture<T>(
     queue: &ArrayQueue<f32>,
     dropped: &AtomicU64,
     monitor: Option<&MonitorBus>,
-)
-where
+) where
     T: SizedSample,
     f32: FromSample<T>,
 {

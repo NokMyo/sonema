@@ -5,8 +5,8 @@ use anyhow::{Context, Result, anyhow};
 use symphonia::core::audio::sample::Sample;
 use symphonia::core::codecs::audio::AudioDecoderOptions;
 use symphonia::core::errors::Error as SymphoniaError;
-use symphonia::core::formats::{FormatOptions, TrackType};
 use symphonia::core::formats::probe::Hint;
+use symphonia::core::formats::{FormatOptions, TrackType};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use uuid::Uuid;
@@ -65,7 +65,9 @@ pub fn decode_audio_file(path: &Path) -> Result<AudioSource> {
             Ok(Some(packet)) => packet,
             Ok(None) => break,
             Err(SymphoniaError::ResetRequired) => {
-                return Err(anyhow!("중간에 오디오 형식이 바뀌는 파일은 지원하지 않습니다"));
+                return Err(anyhow!(
+                    "중간에 오디오 형식이 바뀌는 파일은 지원하지 않습니다"
+                ));
             }
             Err(error) => return Err(error).context("오디오 패킷을 읽지 못했습니다"),
         };

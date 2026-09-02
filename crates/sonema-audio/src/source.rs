@@ -57,7 +57,13 @@ impl AudioSource {
             }
         }
         let peaks = calculate_peaks(&channels, 4_096);
-        Ok(Self { id, name: name.into(), sample_rate, channels, peaks })
+        Ok(Self {
+            id,
+            name: name.into(),
+            sample_rate,
+            channels,
+            peaks,
+        })
     }
 
     pub fn from_recording(
@@ -85,7 +91,9 @@ impl AudioSource {
 
     #[inline]
     pub fn sample_linear(&self, channel: usize, position: f64) -> f32 {
-        let Some(samples) = self.channels.get(channel) else { return 0.0 };
+        let Some(samples) = self.channels.get(channel) else {
+            return 0.0;
+        };
         if position < 0.0 || position >= samples.len() as f64 {
             return 0.0;
         }
@@ -124,13 +132,8 @@ mod tests {
 
     #[test]
     fn linear_sampling_interpolates() {
-        let source = AudioSource::new(
-            Uuid::new_v4(),
-            "test",
-            48_000,
-            vec![vec![0.0, 1.0, 0.0]],
-        )
-        .unwrap();
+        let source =
+            AudioSource::new(Uuid::new_v4(), "test", 48_000, vec![vec![0.0, 1.0, 0.0]]).unwrap();
         assert!((source.sample_linear(0, 0.5) - 0.5).abs() < 1.0e-6);
         assert!((source.sample_linear(0, 1.5) - 0.5).abs() < 1.0e-6);
     }

@@ -4,9 +4,10 @@ mod app;
 mod theme;
 mod timeline;
 
+use std::sync::Arc;
+
 use app::SonemaApp;
 use eframe::egui;
-use std::sync::Arc;
 
 fn main() -> eframe::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
@@ -51,5 +52,9 @@ fn app_icon() -> egui::IconData {
             }
         }
     }
-    egui::IconData { rgba, width: SIZE, height: SIZE }
+    egui::IconData {
+        rgba,
+        width: SIZE,
+        height: SIZE,
+    }
 }

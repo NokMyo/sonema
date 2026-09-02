@@ -24,17 +24,27 @@ impl Default for History {
 
 impl History {
     pub fn new(limit: usize) -> Self {
-        Self { undo: Vec::new(), redo: Vec::new(), transaction: None, limit: limit.max(1) }
+        Self {
+            undo: Vec::new(),
+            redo: Vec::new(),
+            transaction: None,
+            limit: limit.max(1),
+        }
     }
 
     pub fn begin(&mut self, label: impl Into<String>, project: &Project) {
         if self.transaction.is_none() {
-            self.transaction = Some(Entry { label: label.into(), project: project.clone() });
+            self.transaction = Some(Entry {
+                label: label.into(),
+                project: project.clone(),
+            });
         }
     }
 
     pub fn commit(&mut self, project: &Project) -> bool {
-        let Some(entry) = self.transaction.take() else { return false };
+        let Some(entry) = self.transaction.take() else {
+            return false;
+        };
         if entry.project == *project {
             return false;
         }
@@ -50,8 +60,16 @@ impl History {
         self.transaction = None;
     }
 
-    pub fn checkpoint(&mut self, label: impl Into<String>, before: Project, after: &Project) -> bool {
-        self.transaction = Some(Entry { label: label.into(), project: before });
+    pub fn checkpoint(
+        &mut self,
+        label: impl Into<String>,
+        before: Project,
+        after: &Project,
+    ) -> bool {
+        self.transaction = Some(Entry {
+            label: label.into(),
+            project: before,
+        });
         self.commit(after)
     }
 
@@ -59,7 +77,10 @@ impl History {
         self.transaction = None;
         let entry = self.undo.pop()?;
         let label = entry.label.clone();
-        self.redo.push(Entry { label: entry.label, project: project.clone() });
+        self.redo.push(Entry {
+            label: entry.label,
+            project: project.clone(),
+        });
         *project = entry.project;
         Some(label)
     }
@@ -68,7 +89,10 @@ impl History {
         self.transaction = None;
         let entry = self.redo.pop()?;
         let label = entry.label.clone();
-        self.undo.push(Entry { label: entry.label, project: project.clone() });
+        self.undo.push(Entry {
+            label: entry.label,
+            project: project.clone(),
+        });
         *project = entry.project;
         Some(label)
     }

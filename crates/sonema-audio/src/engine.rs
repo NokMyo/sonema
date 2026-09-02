@@ -1,6 +1,6 @@
 use std::array;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SampleFormat, SizedSample, Stream, StreamConfig};
@@ -101,7 +101,8 @@ impl MonitorBus {
 
     pub(crate) fn configure_input(&self, sample_rate: u32, channels: usize) {
         self.input_rate.store(sample_rate, Ordering::Release);
-        self.input_channels.store(channels.max(1), Ordering::Release);
+        self.input_channels
+            .store(channels.max(1), Ordering::Release);
         if sample_rate != self.output_rate {
             self.enabled.store(false, Ordering::Release);
         }
@@ -119,7 +120,11 @@ impl MonitorBus {
         }
         let channels = self.input_channels.load(Ordering::Relaxed).max(1);
         let left = self.queue.pop().unwrap_or(0.0);
-        let right = if channels > 1 { self.queue.pop().unwrap_or(left) } else { left };
+        let right = if channels > 1 {
+            self.queue.pop().unwrap_or(left)
+        } else {
+            left
+        };
         for _ in 2..channels {
             let _ = self.queue.pop();
         }
@@ -233,20 +238,26 @@ impl AudioThread {
     }
 
     fn finish_buffer(&self) {
-        self.shared.playhead.store(self.playhead.max(0.0) as u64, Ordering::Release);
+        self.shared
+            .playhead
+            .store(self.playhead.max(0.0) as u64, Ordering::Release);
         if self.shared.playing.load(Ordering::Acquire)
             && let Some(session) = &self.session
         {
             for (index, (_, peak)) in session.track_meters().enumerate().take(MAX_METER_TRACKS) {
                 self.shared.track_peaks[index].store(peak.to_bits(), Ordering::Relaxed);
             }
-            self.shared.master_peak.store(session.master_meter().to_bits(), Ordering::Relaxed);
+            self.shared
+                .master_peak
+                .store(session.master_meter().to_bits(), Ordering::Relaxed);
             return;
         }
         for meter in &self.shared.track_peaks {
             meter.store(0.0_f32.to_bits(), Ordering::Relaxed);
         }
-        self.shared.master_peak.store(0.0_f32.to_bits(), Ordering::Relaxed);
+        self.shared
+            .master_peak
+            .store(0.0_f32.to_bits(), Ordering::Relaxed);
     }
 }
 
@@ -262,7 +273,9 @@ pub struct AudioEngine {
 impl AudioEngine {
     pub fn new() -> Result<Self, AudioEngineError> {
         let host = cpal::default_host();
-        let device = host.default_output_device().ok_or(AudioEngineError::NoOutputDevice)?;
+        let device = host
+            .default_output_device()
+            .ok_or(AudioEngineError::NoOutputDevice)?;
         let output_name = device.to_string();
         let supported = device
             .default_output_config()
@@ -288,97 +301,56 @@ impl AudioEngine {
 
         let channels = config.channels as usize;
         let stream = match sample_format {
-            SampleFormat::F32 => build_output_stream::<f32>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::F64 => build_output_stream::<f64>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::I8 => build_output_stream::<i8>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::I16 => build_output_stream::<i16>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::I24 => build_output_stream::<cpal::I24>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::I32 => build_output_stream::<i32>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::I64 => build_output_stream::<i64>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::U8 => build_output_stream::<u8>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::U16 => build_output_stream::<u16>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::U24 => build_output_stream::<cpal::U24>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::U32 => build_output_stream::<u32>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
-            SampleFormat::U64 => build_output_stream::<u64>(
-                &device,
-                config,
-                channels,
-                thread,
-                error_shared,
-            ),
+            SampleFormat::F32 => {
+                build_output_stream::<f32>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::F64 => {
+                build_output_stream::<f64>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::I8 => {
+                build_output_stream::<i8>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::I16 => {
+                build_output_stream::<i16>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::I24 => {
+                build_output_stream::<cpal::I24>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::I32 => {
+                build_output_stream::<i32>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::I64 => {
+                build_output_stream::<i64>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::U8 => {
+                build_output_stream::<u8>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::U16 => {
+                build_output_stream::<u16>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::U24 => {
+                build_output_stream::<cpal::U24>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::U32 => {
+                build_output_stream::<u32>(&device, config, channels, thread, error_shared)
+            }
+            SampleFormat::U64 => {
+                build_output_stream::<u64>(&device, config, channels, thread, error_shared)
+            }
             other => return Err(AudioEngineError::UnsupportedSampleFormat(other.to_string())),
         }
         .map_err(|error| AudioEngineError::BuildStream(error.to_string()))?;
         stream
             .play()
             .map_err(|error| AudioEngineError::StartStream(error.to_string()))?;
-        Ok(Self { sender, shared, monitor, retired_sessions, stream, status })
+        Ok(Self {
+            sender,
+            shared,
+            monitor,
+            retired_sessions,
+            stream,
+            status,
+        })
     }
 
     pub fn set_project(
@@ -446,12 +418,13 @@ impl AudioEngine {
     }
 
     pub fn collect_retired_sessions(&self) {
-        while self.retired_sessions.pop().is_some() {
-        }
+        while self.retired_sessions.pop().is_some() {}
     }
 
     fn send(&self, command: EngineCommand) -> Result<(), AudioEngineError> {
-        self.sender.send(command).map_err(|_| AudioEngineError::Disconnected)
+        self.sender
+            .send(command)
+            .map_err(|_| AudioEngineError::Disconnected)
     }
 }
 

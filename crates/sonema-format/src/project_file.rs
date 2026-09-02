@@ -86,15 +86,23 @@ pub fn save_project(path: &Path, project: &Project, media: &MediaPool) -> Result
             byte_offset: offset,
             byte_len,
         });
-        offset = offset.checked_add(byte_len).ok_or(FormatError::InvalidLength)?;
+        offset = offset
+            .checked_add(byte_len)
+            .ok_or(FormatError::InvalidLength)?;
     }
 
-    let manifest = Manifest { project: project.clone(), sources };
+    let manifest = Manifest {
+        project: project.clone(),
+        sources,
+    };
     let manifest_bytes = serde_json::to_vec(&manifest)?;
     if manifest_bytes.len() as u64 > MAX_MANIFEST_BYTES {
         return Err(FormatError::InvalidLength);
     }
-    let parent = path.parent().filter(|value| !value.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let parent = path
+        .parent()
+        .filter(|value| !value.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     let mut temporary = NamedTempFile::new_in(parent)?;
     {
         let mut writer = BufWriter::new(temporary.as_file_mut());
@@ -149,7 +157,10 @@ pub fn load_project(path: &Path) -> Result<(Project, MediaPool), FormatError> {
     let mut manifest_bytes = vec![0_u8; manifest_size];
     reader.read_exact(&mut manifest_bytes)?;
     let manifest: Manifest = serde_json::from_slice(&manifest_bytes)?;
-    manifest.project.validate().map_err(FormatError::InvalidProject)?;
+    manifest
+        .project
+        .validate()
+        .map_err(FormatError::InvalidProject)?;
 
     let mut checksum = Fnv64::new();
     checksum.update(&manifest_bytes);
@@ -163,7 +174,10 @@ pub fn load_project(path: &Path) -> Result<(Project, MediaPool), FormatError> {
             .and_then(|samples| samples.checked_mul(4))
             .ok_or(FormatError::InvalidLength)?;
         if descriptor.byte_len != expected_len
-            || descriptor.byte_offset.checked_add(descriptor.byte_len).is_none()
+            || descriptor
+                .byte_offset
+                .checked_add(descriptor.byte_len)
+                .is_none()
             || descriptor.byte_offset + descriptor.byte_len > audio_len
             || descriptor.channels == 0
             || descriptor.channels > 64
@@ -195,12 +209,17 @@ pub fn load_project(path: &Path) -> Result<(Project, MediaPool), FormatError> {
         return Err(FormatError::ChecksumMismatch);
     }
     for (id, info) in &manifest.project.media {
-        let source = pool.get(id).ok_or_else(|| FormatError::MissingMedia(info.name.clone()))?;
+        let source = pool
+            .get(id)
+            .ok_or_else(|| FormatError::MissingMedia(info.name.clone()))?;
         if source.frames() as u64 != info.frames
             || source.sample_rate != info.sample_rate
             || source.channels.len() != info.channels as usize
         {
-            return Err(FormatError::InvalidProject(format!("{} 미디어가 일치하지 않습니다", info.name)));
+            return Err(FormatError::InvalidProject(format!(
+                "{} 미디어가 일치하지 않습니다",
+                info.name
+            )));
         }
     }
     Ok((manifest.project, pool))
@@ -283,8 +302,7 @@ mod tests {
         let mut project = Project::new("Roundtrip", 48_000);
         let id = Uuid::new_v4();
         let source = Arc::new(
-            AudioSource::new(id, "voice", 48_000, vec![vec![0.0, 0.25, -0.25, 1.0]])
-                .unwrap(),
+            AudioSource::new(id, "voice", 48_000, vec![vec![0.0, 0.25, -0.25, 1.0]]).unwrap(),
         );
         project
             .register_media(MediaInfo {

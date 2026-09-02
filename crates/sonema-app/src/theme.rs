@@ -48,11 +48,16 @@ fn install_system_font(context: &egui::Context) {
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
     ];
-    let Some(bytes) = candidates.iter().find_map(|path| std::fs::read(Path::new(path)).ok()) else {
+    let Some(bytes) = candidates
+        .iter()
+        .find_map(|path| std::fs::read(Path::new(path)).ok())
+    else {
         return;
     };
     let mut fonts = FontDefinitions::default();
-    fonts.font_data.insert("sonema-system".into(), FontData::from_owned(bytes).into());
+    fonts
+        .font_data
+        .insert("sonema-system".into(), FontData::from_owned(bytes).into());
     for family in [FontFamily::Proportional, FontFamily::Monospace] {
         fonts
             .families

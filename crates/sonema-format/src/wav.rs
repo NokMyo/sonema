@@ -20,7 +20,10 @@ pub struct WavExportOptions {
 
 impl Default for WavExportOptions {
     fn default() -> Self {
-        Self { bit_depth: WavBitDepth::Pcm24, dither: true }
+        Self {
+            bit_depth: WavBitDepth::Pcm24,
+            dither: true,
+        }
     }
 }
 
@@ -36,15 +39,14 @@ pub enum WavError {
     Persist(String),
 }
 
-pub fn write_wav(
-    path: &Path,
-    mix: &OfflineMix,
-    options: WavExportOptions,
-) -> Result<(), WavError> {
+pub fn write_wav(path: &Path, mix: &OfflineMix, options: WavExportOptions) -> Result<(), WavError> {
     if mix.channels[0].len() != mix.channels[1].len() {
         return Err(WavError::UnequalChannels);
     }
-    let parent = path.parent().filter(|value| !value.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let parent = path
+        .parent()
+        .filter(|value| !value.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     let mut temporary = NamedTempFile::new_in(parent)?;
     let spec = match options.bit_depth {
         WavBitDepth::Pcm16 => WavSpec {
@@ -95,17 +97,29 @@ pub fn write_wav(
 }
 
 fn to_pcm16(sample: f32, with_dither: bool, dither: &mut Dither) -> i16 {
-    let noise = if with_dither { dither.tpdf() / 32_768.0 } else { 0.0 };
+    let noise = if with_dither {
+        dither.tpdf() / 32_768.0
+    } else {
+        0.0
+    };
     (sanitize(sample + noise) * 32_767.0).round() as i16
 }
 
 fn to_pcm24(sample: f32, with_dither: bool, dither: &mut Dither) -> i32 {
-    let noise = if with_dither { dither.tpdf() / 8_388_608.0 } else { 0.0 };
+    let noise = if with_dither {
+        dither.tpdf() / 8_388_608.0
+    } else {
+        0.0
+    };
     (sanitize(sample + noise) * 8_388_607.0).round() as i32
 }
 
 fn sanitize(sample: f32) -> f32 {
-    if sample.is_finite() { sample.clamp(-1.0, 1.0) } else { 0.0 }
+    if sample.is_finite() {
+        sample.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    }
 }
 
 struct Dither(u64);

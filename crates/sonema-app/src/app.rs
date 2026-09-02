@@ -9,12 +9,8 @@ use sonema_audio::{
     AudioEngine, AudioSource, InputDevice, MediaPool, Recorder, decode_audio_file,
     list_input_devices, render_offline,
 };
-use sonema_core::{
-    ClipId, History, Project, SnapMode, TrackId, db_to_gain, gain_to_db,
-};
-use sonema_format::{
-    WavBitDepth, WavExportOptions, load_project, save_project, write_wav,
-};
+use sonema_core::{ClipId, History, Project, SnapMode, TrackId, db_to_gain, gain_to_db};
+use sonema_format::{WavBitDepth, WavExportOptions, load_project, save_project, write_wav};
 
 use crate::theme;
 use crate::timeline::{self, TimelineAction, TimelineState, TimelineView};
@@ -30,7 +26,10 @@ enum PendingAction {
 }
 
 enum TaskResult {
-    Decoded { path: PathBuf, result: Result<AudioSource, String> },
+    Decoded {
+        path: PathBuf,
+        result: Result<AudioSource, String>,
+    },
     Loaded {
         path: PathBuf,
         recovered: bool,
@@ -42,7 +41,10 @@ enum TaskResult {
         autosave: bool,
         result: Result<(), String>,
     },
-    Exported { path: PathBuf, result: Result<f32, String> },
+    Exported {
+        path: PathBuf,
+        result: Result<f32, String>,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -197,11 +199,16 @@ impl SonemaApp {
         let status_height = 24.0;
         let mixer_height = if self.mixer_open { 188.0 } else { 0.0 };
         let separators = if self.mixer_open { 7.0 } else { 0.0 };
-        let main_height = (ui.available_height() - status_height - mixer_height - separators).max(220.0);
-        ui.allocate_ui(vec2(ui.available_width(), main_height), |ui| self.workspace(ui));
+        let main_height =
+            (ui.available_height() - status_height - mixer_height - separators).max(220.0);
+        ui.allocate_ui(vec2(ui.available_width(), main_height), |ui| {
+            self.workspace(ui)
+        });
         if self.mixer_open {
             ui.separator();
-            ui.allocate_ui(vec2(ui.available_width(), mixer_height), |ui| self.mixer(ui));
+            ui.allocate_ui(vec2(ui.available_width(), mixer_height), |ui| {
+                self.mixer(ui)
+            });
         }
         ui.separator();
         self.status_bar(ui);
@@ -210,7 +217,12 @@ impl SonemaApp {
     fn menu_bar(&mut self, ui: &mut egui::Ui) -> Option<UiCommand> {
         let mut command = None;
         ui.horizontal(|ui| {
-            ui.label(RichText::new("SONEMA").strong().color(theme::ACCENT).size(14.0));
+            ui.label(
+                RichText::new("SONEMA")
+                    .strong()
+                    .color(theme::ACCENT)
+                    .size(14.0),
+            );
             ui.label(RichText::new("Febius").color(theme::MUTED).size(11.0));
             ui.separator();
             ui.menu_button("파일", |ui| {
@@ -218,9 +230,21 @@ impl SonemaApp {
                 menu_item(ui, "열기", "Ctrl+O", &mut command, UiCommand::Open);
                 ui.separator();
                 menu_item(ui, "저장", "Ctrl+S", &mut command, UiCommand::Save);
-                menu_item(ui, "다른 이름으로 저장", "Ctrl+Shift+S", &mut command, UiCommand::SaveAs);
+                menu_item(
+                    ui,
+                    "다른 이름으로 저장",
+                    "Ctrl+Shift+S",
+                    &mut command,
+                    UiCommand::SaveAs,
+                );
                 ui.separator();
-                menu_item(ui, "오디오 가져오기", "Ctrl+I", &mut command, UiCommand::Import);
+                menu_item(
+                    ui,
+                    "오디오 가져오기",
+                    "Ctrl+I",
+                    &mut command,
+                    UiCommand::Import,
+                );
                 menu_item(ui, "믹스 WAV 출력", "", &mut command, UiCommand::Export);
             });
             ui.menu_button("편집", |ui| {
@@ -242,15 +266,36 @@ impl SonemaApp {
                 );
                 ui.separator();
                 menu_item(ui, "클립 분할", "S", &mut command, UiCommand::Split);
-                menu_item(ui, "클립 복제", "Ctrl+D", &mut command, UiCommand::Duplicate);
+                menu_item(
+                    ui,
+                    "클립 복제",
+                    "Ctrl+D",
+                    &mut command,
+                    UiCommand::Duplicate,
+                );
                 menu_item(ui, "클립 삭제", "Delete", &mut command, UiCommand::Delete);
             });
             ui.menu_button("트랙", |ui| {
-                menu_item(ui, "오디오 트랙 추가", "Ctrl+T", &mut command, UiCommand::AddTrack);
-                menu_item(ui, "선택 트랙 삭제", "", &mut command, UiCommand::DeleteTrack);
+                menu_item(
+                    ui,
+                    "오디오 트랙 추가",
+                    "Ctrl+T",
+                    &mut command,
+                    UiCommand::AddTrack,
+                );
+                menu_item(
+                    ui,
+                    "선택 트랙 삭제",
+                    "",
+                    &mut command,
+                    UiCommand::DeleteTrack,
+                );
             });
             ui.menu_button("보기", |ui| {
-                if ui.checkbox(&mut self.inspector_open, "채널 스트립").clicked() {
+                if ui
+                    .checkbox(&mut self.inspector_open, "채널 스트립")
+                    .clicked()
+                {
                     ui.close();
                 }
                 if ui.checkbox(&mut self.mixer_open, "믹서").clicked() {
@@ -271,8 +316,11 @@ impl SonemaApp {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let dirty = if self.dirty { "  • 수정됨" } else { "" };
                 ui.label(
-                    RichText::new(format!("{}{}", self.project.name, dirty))
-                        .color(if self.dirty { theme::TEXT } else { theme::MUTED }),
+                    RichText::new(format!("{}{}", self.project.name, dirty)).color(if self.dirty {
+                        theme::TEXT
+                    } else {
+                        theme::MUTED
+                    }),
                 );
             });
         });
@@ -291,7 +339,11 @@ impl SonemaApp {
             ui.separator();
             let recording = self.recorder.is_some();
             if ui
-                .add(egui::Button::new("●").fill(if recording { theme::RED } else { theme::PANEL_RAISED }))
+                .add(egui::Button::new("●").fill(if recording {
+                    theme::RED
+                } else {
+                    theme::PANEL_RAISED
+                }))
                 .on_hover_text("녹음 (R)")
                 .clicked()
             {
@@ -339,10 +391,18 @@ impl SonemaApp {
             }
             ui.separator();
             ui.checkbox(&mut self.snap_enabled, "스냅");
-            if ui.small_button("－").on_hover_text("타임라인 축소").clicked() {
+            if ui
+                .small_button("－")
+                .on_hover_text("타임라인 축소")
+                .clicked()
+            {
                 self.timeline.zoom_out();
             }
-            if ui.small_button("＋").on_hover_text("타임라인 확대").clicked() {
+            if ui
+                .small_button("＋")
+                .on_hover_text("타임라인 확대")
+                .clicked()
+            {
                 self.timeline.zoom_in();
             }
             if ui.selectable_label(self.mixer_open, "믹서").clicked() {
@@ -358,7 +418,11 @@ impl SonemaApp {
         ui.horizontal(|ui| {
             let timeline_width = (ui.available_width() - inspector_width - 7.0).max(300.0);
             ui.allocate_ui(vec2(timeline_width, ui.available_height()), |ui| {
-                let snap = if self.snap_enabled { self.snap } else { SnapMode::Off };
+                let snap = if self.snap_enabled {
+                    self.snap
+                } else {
+                    SnapMode::Off
+                };
                 let actions = timeline::show(
                     ui,
                     &self.project,
@@ -375,7 +439,9 @@ impl SonemaApp {
             });
             if self.inspector_open {
                 ui.separator();
-                ui.allocate_ui(vec2(inspector_width, ui.available_height()), |ui| self.inspector(ui));
+                ui.allocate_ui(vec2(inspector_width, ui.available_height()), |ui| {
+                    self.inspector(ui)
+                });
             }
         });
     }
@@ -387,7 +453,12 @@ impl SonemaApp {
             ui.label(RichText::new("트랙을 선택하십시오.").color(theme::MUTED));
             return;
         };
-        let Some(index) = self.project.tracks.iter().position(|track| track.id == track_id) else {
+        let Some(index) = self
+            .project
+            .tracks
+            .iter()
+            .position(|track| track.id == track_id)
+        else {
             return;
         };
         let before = self.project.clone();
@@ -411,11 +482,13 @@ impl SonemaApp {
             ui.separator();
             ui.collapsing("하이패스", |ui| {
                 signals.add(&ui.checkbox(&mut track.effects.high_pass.enabled, "사용"));
-                signals.add(&ui.add(
-                    egui::Slider::new(&mut track.effects.high_pass.frequency_hz, 20.0..=500.0)
-                        .logarithmic(true)
-                        .suffix(" Hz"),
-                ));
+                signals.add(
+                    &ui.add(
+                        egui::Slider::new(&mut track.effects.high_pass.frequency_hz, 20.0..=500.0)
+                            .logarithmic(true)
+                            .suffix(" Hz"),
+                    ),
+                );
             });
             ui.collapsing("3밴드 EQ", |ui| {
                 eq_band(ui, "저역", &mut track.effects.low_eq, &mut signals);
@@ -428,20 +501,28 @@ impl SonemaApp {
                 signals.add(&ui.add(
                     egui::Slider::new(&mut compressor.threshold_db, -60.0..=0.0).suffix(" dB"),
                 ));
-                signals.add(&ui.add(egui::Slider::new(&mut compressor.ratio, 1.0..=20.0).suffix(":1")));
-                signals.add(&ui.add(
-                    egui::Slider::new(&mut compressor.attack_ms, 0.1..=200.0)
-                        .logarithmic(true)
-                        .suffix(" ms"),
-                ));
-                signals.add(&ui.add(
-                    egui::Slider::new(&mut compressor.release_ms, 10.0..=2_000.0)
-                        .logarithmic(true)
-                        .suffix(" ms"),
-                ));
-                signals.add(&ui.add(
-                    egui::Slider::new(&mut compressor.makeup_db, -6.0..=18.0).suffix(" dB"),
-                ));
+                signals.add(
+                    &ui.add(egui::Slider::new(&mut compressor.ratio, 1.0..=20.0).suffix(":1")),
+                );
+                signals.add(
+                    &ui.add(
+                        egui::Slider::new(&mut compressor.attack_ms, 0.1..=200.0)
+                            .logarithmic(true)
+                            .suffix(" ms"),
+                    ),
+                );
+                signals.add(
+                    &ui.add(
+                        egui::Slider::new(&mut compressor.release_ms, 10.0..=2_000.0)
+                            .logarithmic(true)
+                            .suffix(" ms"),
+                    ),
+                );
+                signals.add(
+                    &ui.add(
+                        egui::Slider::new(&mut compressor.makeup_db, -6.0..=18.0).suffix(" dB"),
+                    ),
+                );
             });
         }
         if arm_changed && self.project.tracks[index].armed {
@@ -458,67 +539,105 @@ impl SonemaApp {
     fn mixer(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label(RichText::new("MIXER").strong().color(theme::MUTED));
-            ui.label(RichText::new("트랙별 레벨과 팬").small().color(theme::MUTED));
+            ui.label(
+                RichText::new("트랙별 레벨과 팬")
+                    .small()
+                    .color(theme::MUTED),
+            );
         });
         let before = self.project.clone();
         let mut signals = EditSignals::default();
         let mut selected = None;
         let mut arm_clicked = None;
-        egui::ScrollArea::horizontal().id_salt("mixer-scroll").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                for (index, track) in self.project.tracks.iter_mut().enumerate() {
-                    let meter = self.engine.as_ref().map_or(0.0, |engine| engine.track_meter(index));
-                    egui::Frame::group(ui.style()).fill(theme::PANEL).show(ui, |ui| {
-                        ui.set_width(116.0);
-                        if ui
-                            .add(egui::Button::new(&track.name).min_size(vec2(108.0, 22.0)))
-                            .clicked()
-                        {
-                            selected = Some(track.id);
-                        }
-                        ui.horizontal(|ui| {
-                            signals.add(&ui.toggle_value(&mut track.mute, "M"));
-                            signals.add(&ui.toggle_value(&mut track.solo, "S"));
-                            let mut armed = track.armed;
-                            let response = ui.toggle_value(&mut armed, "R");
-                            if response.changed() {
-                                arm_clicked = Some((track.id, armed));
-                                signals.add(&response);
-                            }
-                        });
-                        ui.horizontal(|ui| {
-                            signals.add(&ui.add(
-                                egui::Slider::new(&mut track.gain_db, -60.0..=12.0)
-                                    .vertical()
-                                    .show_value(false),
-                            ));
-                            meter_widget(ui, meter, vec2(8.0, 72.0));
-                            ui.vertical(|ui| {
-                                ui.label(RichText::new(format!("{:+.1}", track.gain_db)).monospace().small());
-                                signals.add(&ui.add(egui::Slider::new(&mut track.pan, -1.0..=1.0).show_value(false)));
-                                ui.label(RichText::new(format!("P {:+.0}", track.pan * 100.0)).small());
+        egui::ScrollArea::horizontal()
+            .id_salt("mixer-scroll")
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (index, track) in self.project.tracks.iter_mut().enumerate() {
+                        let meter = self
+                            .engine
+                            .as_ref()
+                            .map_or(0.0, |engine| engine.track_meter(index));
+                        egui::Frame::group(ui.style())
+                            .fill(theme::PANEL)
+                            .show(ui, |ui| {
+                                ui.set_width(116.0);
+                                if ui
+                                    .add(egui::Button::new(&track.name).min_size(vec2(108.0, 22.0)))
+                                    .clicked()
+                                {
+                                    selected = Some(track.id);
+                                }
+                                ui.horizontal(|ui| {
+                                    signals.add(&ui.toggle_value(&mut track.mute, "M"));
+                                    signals.add(&ui.toggle_value(&mut track.solo, "S"));
+                                    let mut armed = track.armed;
+                                    let response = ui.toggle_value(&mut armed, "R");
+                                    if response.changed() {
+                                        arm_clicked = Some((track.id, armed));
+                                        signals.add(&response);
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    signals.add(
+                                        &ui.add(
+                                            egui::Slider::new(&mut track.gain_db, -60.0..=12.0)
+                                                .vertical()
+                                                .show_value(false),
+                                        ),
+                                    );
+                                    meter_widget(ui, meter, vec2(8.0, 72.0));
+                                    ui.vertical(|ui| {
+                                        ui.label(
+                                            RichText::new(format!("{:+.1}", track.gain_db))
+                                                .monospace()
+                                                .small(),
+                                        );
+                                        signals.add(
+                                            &ui.add(
+                                                egui::Slider::new(&mut track.pan, -1.0..=1.0)
+                                                    .show_value(false),
+                                            ),
+                                        );
+                                        ui.label(
+                                            RichText::new(format!("P {:+.0}", track.pan * 100.0))
+                                                .small(),
+                                        );
+                                    });
+                                });
+                            });
+                    }
+                    ui.separator();
+                    let master_meter = self.engine.as_ref().map_or(0.0, AudioEngine::master_meter);
+                    egui::Frame::group(ui.style())
+                        .fill(Color32::from_rgb(26, 35, 34))
+                        .show(ui, |ui| {
+                            ui.set_width(116.0);
+                            ui.label(RichText::new("MASTER").strong().color(theme::ACCENT));
+                            ui.add_space(28.0);
+                            ui.horizontal(|ui| {
+                                signals.add(
+                                    &ui.add(
+                                        egui::Slider::new(
+                                            &mut self.project.master.gain_db,
+                                            -60.0..=12.0,
+                                        )
+                                        .vertical()
+                                        .show_value(false),
+                                    ),
+                                );
+                                meter_widget(ui, master_meter, vec2(8.0, 72.0));
+                                ui.label(
+                                    RichText::new(format!(
+                                        "{:+.1} dB",
+                                        self.project.master.gain_db
+                                    ))
+                                    .monospace(),
+                                );
                             });
                         });
-                    });
-                }
-                ui.separator();
-                let master_meter = self.engine.as_ref().map_or(0.0, AudioEngine::master_meter);
-                egui::Frame::group(ui.style()).fill(Color32::from_rgb(26, 35, 34)).show(ui, |ui| {
-                    ui.set_width(116.0);
-                    ui.label(RichText::new("MASTER").strong().color(theme::ACCENT));
-                    ui.add_space(28.0);
-                    ui.horizontal(|ui| {
-                        signals.add(&ui.add(
-                            egui::Slider::new(&mut self.project.master.gain_db, -60.0..=12.0)
-                                .vertical()
-                                .show_value(false),
-                        ));
-                        meter_widget(ui, master_meter, vec2(8.0, 72.0));
-                        ui.label(RichText::new(format!("{:+.1} dB", self.project.master.gain_db)).monospace());
-                    });
                 });
             });
-        });
         if let Some((id, armed)) = arm_clicked {
             for track in &mut self.project.tracks {
                 track.armed = track.id == id && armed;
@@ -697,13 +816,17 @@ impl SonemaApp {
 
     fn add_track(&mut self) {
         let before = self.project.clone();
-        let id = self.project.add_track(format!("오디오 {}", self.project.tracks.len() + 1));
+        let id = self
+            .project
+            .add_track(format!("오디오 {}", self.project.tracks.len() + 1));
         self.selected_track = Some(id);
         self.finish_discrete_edit("트랙 추가", before);
     }
 
     fn delete_selected_track(&mut self) {
-        let Some(id) = self.selected_track else { return };
+        let Some(id) = self.selected_track else {
+            return;
+        };
         let before = self.project.clone();
         match self.project.remove_track(id) {
             Ok(()) => {
@@ -780,7 +903,12 @@ impl SonemaApp {
 
     fn choose_audio_files(&mut self) {
         let Some(paths) = rfd::FileDialog::new()
-            .add_filter("오디오", &["wav", "wave", "mp3", "flac", "ogg", "m4a", "aac", "aif", "aiff"])
+            .add_filter(
+                "오디오",
+                &[
+                    "wav", "wave", "mp3", "flac", "ogg", "m4a", "aac", "aif", "aiff",
+                ],
+            )
             .pick_files()
         else {
             return;
@@ -804,7 +932,11 @@ impl SonemaApp {
         self.status = "프로젝트 여는 중".into();
         std::thread::spawn(move || {
             let result = load_project(&path).map_err(|error| error.to_string());
-            let _ = sender.send(TaskResult::Loaded { path, recovered, result });
+            let _ = sender.send(TaskResult::Loaded {
+                path,
+                recovered,
+                result,
+            });
         });
     }
 
@@ -844,7 +976,12 @@ impl SonemaApp {
         }
         std::thread::spawn(move || {
             let result = save_project(&path, &project, &media).map_err(|error| error.to_string());
-            let _ = sender.send(TaskResult::Saved { path, generation, autosave, result });
+            let _ = sender.send(TaskResult::Saved {
+                path,
+                generation,
+                autosave,
+                result,
+            });
         });
     }
 
@@ -867,12 +1004,16 @@ impl SonemaApp {
         let media = self.media.clone();
         let rate = self.export_rate;
         let normalize = self.export_normalize.then_some(-1.0);
-        let options = WavExportOptions { bit_depth: self.export_depth, dither: true };
+        let options = WavExportOptions {
+            bit_depth: self.export_depth,
+            dither: true,
+        };
         let sender = self.task_sender.clone();
         self.exporting = true;
         std::thread::spawn(move || {
             let result = (|| {
-                let mix = render_offline(&project, &media, rate, normalize).map_err(|error| error.to_string())?;
+                let mix = render_offline(&project, &media, rate, normalize)
+                    .map_err(|error| error.to_string())?;
                 let peak = mix.peak;
                 write_wav(&path, &mix, options).map_err(|error| error.to_string())?;
                 Ok(peak)
@@ -912,7 +1053,11 @@ impl SonemaApp {
                         Err(error) => self.error(format!("{}: {error}", path.display())),
                     }
                 }
-                TaskResult::Loaded { path, recovered, result } => match result {
+                TaskResult::Loaded {
+                    path,
+                    recovered,
+                    result,
+                } => match result {
                     Ok((project, media)) => {
                         self.stop();
                         self.project = project;
@@ -925,11 +1070,21 @@ impl SonemaApp {
                         self.generation = self.generation.wrapping_add(1);
                         self.rebuild_engine();
                         self.recovery_available = false;
-                        self.status = if recovered { "자동 복구 완료" } else { "프로젝트 열기 완료" }.into();
+                        self.status = if recovered {
+                            "자동 복구 완료"
+                        } else {
+                            "프로젝트 열기 완료"
+                        }
+                        .into();
                     }
                     Err(error) => self.error(error),
                 },
-                TaskResult::Saved { path, generation, autosave, result } => {
+                TaskResult::Saved {
+                    path,
+                    generation,
+                    autosave,
+                    result,
+                } => {
                     if autosave {
                         self.autosaving = false;
                         match result {
@@ -982,10 +1137,18 @@ impl SonemaApp {
         }
         self.rebuild_engine();
         let Some(engine) = &self.engine else {
-            self.error(self.engine_problem.clone().unwrap_or_else(|| "오디오 출력이 없습니다".into()));
+            self.error(
+                self.engine_problem
+                    .clone()
+                    .unwrap_or_else(|| "오디오 출력이 없습니다".into()),
+            );
             return;
         };
-        let result = if engine.is_playing() { engine.pause() } else { engine.play() };
+        let result = if engine.is_playing() {
+            engine.pause()
+        } else {
+            engine.play()
+        };
         if let Err(error) = result {
             self.error(error.to_string());
         }
@@ -1009,7 +1172,9 @@ impl SonemaApp {
     }
 
     fn playhead(&self) -> u64 {
-        self.engine.as_ref().map_or(self.fallback_playhead, AudioEngine::playhead)
+        self.engine
+            .as_ref()
+            .map_or(self.fallback_playhead, AudioEngine::playhead)
     }
 
     fn toggle_recording(&mut self) {
@@ -1039,7 +1204,10 @@ impl SonemaApp {
         let monitor = self.engine.as_ref().map(AudioEngine::monitor_bus);
         match Recorder::start(self.selected_input.as_deref(), monitor.clone()) {
             Ok(recorder) => {
-                let monitor_requested = self.project.track(track_id).is_some_and(|track| track.monitor);
+                let monitor_requested = self
+                    .project
+                    .track(track_id)
+                    .is_some_and(|track| track.monitor);
                 if let Some(bus) = &monitor
                     && monitor_requested
                     && !bus.set_enabled(true)
@@ -1047,7 +1215,8 @@ impl SonemaApp {
                     self.notice("입출력 샘플레이트가 달라 입력 모니터링을 껐습니다".into());
                 }
                 self.recording_channels.clear();
-                self.recording_channels.resize_with(recorder.channel_count(), Vec::new);
+                self.recording_channels
+                    .resize_with(recorder.channel_count(), Vec::new);
                 self.recording_start = self.playhead();
                 self.recording_track = Some(track_id);
                 self.recorder = Some(recorder);
@@ -1062,13 +1231,17 @@ impl SonemaApp {
     }
 
     fn stop_recording(&mut self) {
-        let Some(recorder) = self.recorder.take() else { return };
+        let Some(recorder) = self.recorder.take() else {
+            return;
+        };
         if let Some(engine) = &self.engine {
             engine.monitor_bus().set_enabled(false);
             let _ = engine.pause();
         }
         let recorded = recorder.finish(std::mem::take(&mut self.recording_channels));
-        let Some(track_id) = self.recording_track.take() else { return };
+        let Some(track_id) = self.recording_track.take() else {
+            return;
+        };
         if recorded.channels.first().map_or(0, Vec::len) < 32 {
             self.error("녹음된 오디오가 너무 짧습니다".into());
             return;
@@ -1086,7 +1259,10 @@ impl SonemaApp {
                     return;
                 }
                 self.media.insert(id, source);
-                match self.project.insert_media_clip(track_id, id, self.recording_start) {
+                match self
+                    .project
+                    .insert_media_clip(track_id, id, self.recording_start)
+                {
                     Ok(clip) => {
                         self.selected_clip = Some(clip);
                         self.finish_discrete_edit("오디오 녹음", before);
@@ -1179,10 +1355,7 @@ impl SonemaApp {
     }
 
     fn autosave(&mut self) {
-        if self.dirty
-            && !self.autosaving
-            && self.last_autosave.elapsed() >= AUTOSAVE_INTERVAL
-        {
+        if self.dirty && !self.autosaving && self.last_autosave.elapsed() >= AUTOSAVE_INTERVAL {
             if let Some(path) = self.recovery_path.clone() {
                 self.spawn_save(path, true);
             }
@@ -1255,7 +1428,12 @@ impl SonemaApp {
         if paths.len() == 1 && extension_is(&paths[0], "sonema") {
             self.request_action(PendingAction::OpenPath(paths[0].clone()));
         } else {
-            self.import_paths(paths.into_iter().filter(|path| !extension_is(path, "sonema")).collect());
+            self.import_paths(
+                paths
+                    .into_iter()
+                    .filter(|path| !extension_is(path, "sonema"))
+                    .collect(),
+            );
         }
     }
 
@@ -1337,34 +1515,55 @@ impl SonemaApp {
             .resizable(false)
             .open(&mut open)
             .show(context, |ui| {
-                egui::Grid::new("export-grid").num_columns(2).show(ui, |ui| {
-                    ui.label("샘플레이트");
-                    egui::ComboBox::from_id_salt("export-rate")
-                        .selected_text(format!("{} Hz", self.export_rate))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.export_rate, 44_100, "44,100 Hz");
-                            ui.selectable_value(&mut self.export_rate, 48_000, "48,000 Hz");
-                            ui.selectable_value(&mut self.export_rate, 96_000, "96,000 Hz");
-                        });
-                    ui.end_row();
-                    ui.label("비트 깊이");
-                    egui::ComboBox::from_id_salt("export-depth")
-                        .selected_text(match self.export_depth {
-                            WavBitDepth::Pcm16 => "16-bit PCM",
-                            WavBitDepth::Pcm24 => "24-bit PCM",
-                            WavBitDepth::Float32 => "32-bit Float",
-                        })
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.export_depth, WavBitDepth::Pcm16, "16-bit PCM");
-                            ui.selectable_value(&mut self.export_depth, WavBitDepth::Pcm24, "24-bit PCM");
-                            ui.selectable_value(&mut self.export_depth, WavBitDepth::Float32, "32-bit Float");
-                        });
-                    ui.end_row();
-                });
+                egui::Grid::new("export-grid")
+                    .num_columns(2)
+                    .show(ui, |ui| {
+                        ui.label("샘플레이트");
+                        egui::ComboBox::from_id_salt("export-rate")
+                            .selected_text(format!("{} Hz", self.export_rate))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut self.export_rate, 44_100, "44,100 Hz");
+                                ui.selectable_value(&mut self.export_rate, 48_000, "48,000 Hz");
+                                ui.selectable_value(&mut self.export_rate, 96_000, "96,000 Hz");
+                            });
+                        ui.end_row();
+                        ui.label("비트 깊이");
+                        egui::ComboBox::from_id_salt("export-depth")
+                            .selected_text(match self.export_depth {
+                                WavBitDepth::Pcm16 => "16-bit PCM",
+                                WavBitDepth::Pcm24 => "24-bit PCM",
+                                WavBitDepth::Float32 => "32-bit Float",
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.export_depth,
+                                    WavBitDepth::Pcm16,
+                                    "16-bit PCM",
+                                );
+                                ui.selectable_value(
+                                    &mut self.export_depth,
+                                    WavBitDepth::Pcm24,
+                                    "24-bit PCM",
+                                );
+                                ui.selectable_value(
+                                    &mut self.export_depth,
+                                    WavBitDepth::Float32,
+                                    "32-bit Float",
+                                );
+                            });
+                        ui.end_row();
+                    });
                 ui.checkbox(&mut self.export_normalize, "피크를 -1 dBFS로 정규화");
-                ui.label(RichText::new("트랙 EQ와 컴프레서, 마스터 리미터가 그대로 적용됩니다.").small().color(theme::MUTED));
+                ui.label(
+                    RichText::new("트랙 EQ와 컴프레서, 마스터 리미터가 그대로 적용됩니다.")
+                        .small()
+                        .color(theme::MUTED),
+                );
                 ui.add_space(8.0);
-                if ui.add_enabled(!self.exporting, egui::Button::new("WAV 출력")).clicked() {
+                if ui
+                    .add_enabled(!self.exporting, egui::Button::new("WAV 출력"))
+                    .clicked()
+                {
                     start = true;
                 }
             });
@@ -1387,7 +1586,10 @@ impl SonemaApp {
                 if let Some(engine) = &self.engine {
                     let status = engine.status();
                     ui.label(format!("출력: {}", status.output_name));
-                    ui.label(format!("{} Hz / {}채널", status.sample_rate, status.channels));
+                    ui.label(format!(
+                        "{} Hz / {}채널",
+                        status.sample_rate, status.channels
+                    ));
                 } else {
                     ui.label(RichText::new("출력 장치를 열지 못했습니다.").color(theme::RED));
                     if let Some(problem) = &self.engine_problem {
@@ -1405,7 +1607,11 @@ impl SonemaApp {
                             } else {
                                 device.name.clone()
                             };
-                            ui.selectable_value(&mut self.selected_input, Some(device.name.clone()), label);
+                            ui.selectable_value(
+                                &mut self.selected_input,
+                                Some(device.name.clone()),
+                                label,
+                            );
                         }
                     });
                 if ui.button("장치 목록 새로 고침").clicked() {
@@ -1433,7 +1639,12 @@ impl SonemaApp {
             .resizable(false)
             .open(&mut open)
             .show(context, |ui| {
-                ui.label(RichText::new("SONEMA").size(30.0).strong().color(theme::ACCENT));
+                ui.label(
+                    RichText::new("SONEMA")
+                        .size(30.0)
+                        .strong()
+                        .color(theme::ACCENT),
+                );
                 ui.label("빠르고 정교한 오디오 작업 도구.");
                 ui.separator();
                 ui.label("Version 0.1.0");
@@ -1444,7 +1655,9 @@ impl SonemaApp {
     }
 
     fn toast_ui(&mut self, context: &egui::Context) {
-        let Some((message, is_error, expires)) = &self.toast else { return };
+        let Some((message, is_error, expires)) = &self.toast else {
+            return;
+        };
         if Instant::now() >= *expires {
             self.toast = None;
             return;
@@ -1454,8 +1667,15 @@ impl SonemaApp {
             .order(egui::Order::Foreground)
             .show(context, |ui| {
                 egui::Frame::new()
-                    .fill(if *is_error { Color32::from_rgb(66, 29, 35) } else { Color32::from_rgb(27, 55, 47) })
-                    .stroke(Stroke::new(1.0, if *is_error { theme::RED } else { theme::ACCENT }))
+                    .fill(if *is_error {
+                        Color32::from_rgb(66, 29, 35)
+                    } else {
+                        Color32::from_rgb(27, 55, 47)
+                    })
+                    .stroke(Stroke::new(
+                        1.0,
+                        if *is_error { theme::RED } else { theme::ACCENT },
+                    ))
                     .inner_margin(egui::Margin::symmetric(12, 8))
                     .show(ui, |ui| {
                         ui.label(message);
@@ -1557,8 +1777,15 @@ fn menu_item_enabled(
     command: &mut Option<UiCommand>,
     value: UiCommand,
 ) {
-    let text = if shortcut.is_empty() { label.to_owned() } else { format!("{label}    {shortcut}") };
-    if ui.add_enabled(enabled, egui::Button::new(text).frame(false)).clicked() {
+    let text = if shortcut.is_empty() {
+        label.to_owned()
+    } else {
+        format!("{label}    {shortcut}")
+    };
+    if ui
+        .add_enabled(enabled, egui::Button::new(text).frame(false))
+        .clicked()
+    {
         *command = Some(value);
         ui.close();
     }
@@ -1574,23 +1801,32 @@ fn eq_band(
         signals.add(&ui.checkbox(&mut band.enabled, label));
         signals.add(&ui.add(egui::Slider::new(&mut band.gain_db, -12.0..=12.0).suffix(" dB")));
     });
-    signals.add(&ui.add(
-        egui::Slider::new(&mut band.frequency_hz, 30.0..=18_000.0)
-            .logarithmic(true)
-            .suffix(" Hz"),
-    ));
+    signals.add(
+        &ui.add(
+            egui::Slider::new(&mut band.frequency_hz, 30.0..=18_000.0)
+                .logarithmic(true)
+                .suffix(" Hz"),
+        ),
+    );
 }
 
 fn meter_widget(ui: &mut egui::Ui, peak: f32, size: Vec2) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    ui.painter().rect_filled(rect, 2.0, Color32::from_rgb(10, 13, 15));
+    ui.painter()
+        .rect_filled(rect, 2.0, Color32::from_rgb(10, 13, 15));
     let db = gain_to_db(peak).clamp(-60.0, 3.0);
     let fraction = ((db + 60.0) / 63.0).clamp(0.0, 1.0);
     let fill = egui::Rect::from_min_max(
         egui::pos2(rect.left(), rect.bottom() - rect.height() * fraction),
         rect.right_bottom(),
     );
-    let color = if db > 0.0 { theme::RED } else if db > -9.0 { theme::AMBER } else { theme::ACCENT };
+    let color = if db > 0.0 {
+        theme::RED
+    } else if db > -9.0 {
+        theme::AMBER
+    } else {
+        theme::ACCENT
+    };
     ui.painter().rect_filled(fill, 2.0, color);
 }
 
@@ -1606,10 +1842,20 @@ fn format_time(seconds: f64) -> String {
 fn safe_filename(name: &str) -> String {
     let value = name
         .chars()
-        .map(|character| if "<>:\"/\\|?*".contains(character) { '_' } else { character })
+        .map(|character| {
+            if "<>:\"/\\|?*".contains(character) {
+                '_'
+            } else {
+                character
+            }
+        })
         .collect::<String>();
     let trimmed = value.trim().trim_end_matches('.');
-    if trimmed.is_empty() { "Sonema Project".into() } else { trimmed.into() }
+    if trimmed.is_empty() {
+        "Sonema Project".into()
+    } else {
+        trimmed.into()
+    }
 }
 
 fn extension_is(path: &Path, expected: &str) -> bool {

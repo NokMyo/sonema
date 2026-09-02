@@ -14,7 +14,13 @@ struct Coefficients {
 }
 
 impl Coefficients {
-    const IDENTITY: Self = Self { b0: 1.0, b1: 0.0, b2: 0.0, a1: 0.0, a2: 0.0 };
+    const IDENTITY: Self = Self {
+        b0: 1.0,
+        b1: 0.0,
+        b2: 0.0,
+        a1: 0.0,
+        a2: 0.0,
+    };
 
     fn normalize(b0: f32, b1: f32, b2: f32, a0: f32, a1: f32, a2: f32) -> Self {
         let reciprocal = if a0.abs() < 1.0e-12 { 1.0 } else { a0.recip() };
@@ -42,7 +48,10 @@ pub struct StereoBiquad {
 
 impl Default for StereoBiquad {
     fn default() -> Self {
-        Self { coefficients: Coefficients::IDENTITY, state: [FilterState::default(); 2] }
+        Self {
+            coefficients: Coefficients::IDENTITY,
+            state: [FilterState::default(); 2],
+        }
     }
 }
 
@@ -98,7 +107,10 @@ impl StereoBiquad {
 
     #[inline]
     pub fn process(&mut self, frame: [f32; 2]) -> [f32; 2] {
-        [self.process_channel(0, frame[0]), self.process_channel(1, frame[1])]
+        [
+            self.process_channel(0, frame[0]),
+            self.process_channel(1, frame[1]),
+        ]
     }
 
     #[inline]
@@ -144,8 +156,10 @@ impl StereoCompressor {
         self.enabled = settings.enabled;
         self.threshold_db = settings.threshold_db.clamp(-72.0, 0.0);
         self.ratio = settings.ratio.clamp(1.0, 30.0);
-        self.attack_coefficient = time_coefficient(sample_rate, settings.attack_ms.clamp(0.05, 500.0));
-        self.release_coefficient = time_coefficient(sample_rate, settings.release_ms.clamp(2.0, 5_000.0));
+        self.attack_coefficient =
+            time_coefficient(sample_rate, settings.attack_ms.clamp(0.05, 500.0));
+        self.release_coefficient =
+            time_coefficient(sample_rate, settings.release_ms.clamp(2.0, 5_000.0));
         self.makeup_gain = db_to_gain(settings.makeup_db.clamp(-12.0, 24.0));
     }
 
@@ -258,7 +272,11 @@ impl SafetyLimiter {
     #[inline]
     pub fn process(&mut self, frame: [f32; 2]) -> [f32; 2] {
         let peak = frame[0].abs().max(frame[1].abs());
-        let target = if peak > self.ceiling { self.ceiling / peak } else { 1.0 };
+        let target = if peak > self.ceiling {
+            self.ceiling / peak
+        } else {
+            1.0
+        };
         if target < self.gain {
             self.gain = target;
         } else {
