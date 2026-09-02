@@ -24,21 +24,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev
       - uses: Swatinem/rust-cache@v2
-      - name: Format sources for the build
-        run: cargo fmt --all
-      - name: Resolve the reproducible dependency set
-        run: cargo generate-lockfile
-      - name: Preserve rustfmt output
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: rustfmt-source
-          path: |
-            Cargo.lock
-            crates/**/*.rs
-          retention-days: 1
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
 
   windows-release:
     runs-on: windows-latest
@@ -52,3 +40,4 @@ jobs:
         with:
           name: Febius-Sonema-Windows-x64
           path: release/*.zip
+          if-no-files-found: error

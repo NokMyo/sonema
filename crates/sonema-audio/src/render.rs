@@ -262,12 +262,29 @@ pub fn render_offline(
     sample_rate: u32,
     normalize_to_db: Option<f32>,
 ) -> Result<OfflineMix> {
+    if !(8_000..=768_000).contains(&sample_rate) {
+        return Err(anyhow!("출력 샘플레이트가 지원 범위를 벗어났습니다"));
+    }
+    if normalize_to_db.is_some_and(|target| !target.is_finite()) {
+        return Err(anyhow!("노멀라이즈 목표값이 올바르지 않습니다"));
+    }
     let mut session = RealtimeSession::compile(project, media, sample_rate, false)?;
     let project_duration = project.duration_frames();
-    let output_frames = ((project_duration as u128 * sample_rate as u128)
-        .div_ceil(project.sample_rate as u128))
-        .min(usize::MAX as u128) as usize;
-    let mut channels = [vec![0.0_f32; output_frames], vec![0.0_f32; output_frames]];
+    let output_frames = (project_duration as u128 * sample_rate as u128)
+        .div_ceil(project.sample_rate as u128);
+    let output_frames = usize::try_from(output_frames)
+        .map_err(|_| anyhow!("출력 파일이 이 시스템에서 처리할 수 있는 크기를 넘었습니다"))?;
+    output_frames
+        .checked_mul(std::mem::size_of::<f32>() * 2)
+        .filter(|bytes| *bytes <= isize::MAX as usize)
+        .ok_or_else(|| anyhow!("출력 파일이 이 시스템에서 처리할 수 있는 크기를 넘었습니다"))?;
+    let mut channels = [Vec::new(), Vec::new()];
+    for channel in &mut channels {
+        channel
+            .try_reserve_exact(output_frames)
+            .map_err(|_| anyhow!("WAV 출력용 메모리를 확보할 수 없습니다"))?;
+        channel.resize(output_frames, 0.0_f32);
+    }
     let project_step = project.sample_rate as f64 / sample_rate as f64;
     let mut project_frame = 0.0_f64;
     let mut peak = 0.0_f32;
@@ -333,5 +350,13 @@ mod tests {
         let project = Project::new("loop", 48_000);
         let session = RealtimeSession::compile(&project, &MediaPool::new(), 48_000, false).unwrap();
         assert_eq!(session.loop_region(), Some((0.0, project.duration_frames() as f64)));
+    }
+
+    #[test]
+    fn offline_render_rejects_invalid_settings() {
+        let project = Project::new("invalid render", 48_000);
+        let media = MediaPool::new();
+        assert!(render_offline(&project, &media, 0, None).is_err());
+        assert!(render_offline(&project, &media, 48_000, Some(f32::NAN)).is_err());
     }
 }

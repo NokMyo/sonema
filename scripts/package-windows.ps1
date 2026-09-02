@@ -6,8 +6,8 @@ $bundle = Join-Path $output "Febius-Sonema-0.1.0-windows-x64"
 
 Push-Location $workspace
 try {
-    cargo test --workspace
-    cargo build -p sonema-app --release
+    cargo test --locked --workspace
+    cargo build --locked -p sonema-app --release
     $notices = Join-Path $output "THIRD-PARTY-NOTICES.txt"
     & (Join-Path $PSScriptRoot "generate-third-party-notices.ps1") -Destination $notices
     New-Item -ItemType Directory -Force -Path $bundle | Out-Null

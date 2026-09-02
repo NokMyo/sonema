@@ -392,6 +392,7 @@ impl SonemaApp {
         };
         let before = self.project.clone();
         let mut signals = EditSignals::default();
+        let mut arm_changed = false;
         {
             let track = &mut self.project.tracks[index];
             signals.add(&ui.text_edit_singleline(&mut track.name));
@@ -402,7 +403,9 @@ impl SonemaApp {
             ui.horizontal(|ui| {
                 signals.add(&ui.checkbox(&mut track.mute, "뮤트"));
                 signals.add(&ui.checkbox(&mut track.solo, "솔로"));
-                signals.add(&ui.checkbox(&mut track.armed, "녹음 대기"));
+                let response = ui.checkbox(&mut track.armed, "녹음 대기");
+                arm_changed = response.changed();
+                signals.add(&response);
             });
             signals.add(&ui.checkbox(&mut track.monitor, "입력 모니터링"));
             ui.separator();
@@ -440,6 +443,11 @@ impl SonemaApp {
                     egui::Slider::new(&mut compressor.makeup_db, -6.0..=18.0).suffix(" dB"),
                 ));
             });
+        }
+        if arm_changed && self.project.tracks[index].armed {
+            for (track_index, track) in self.project.tracks.iter_mut().enumerate() {
+                track.armed = track_index == index;
+            }
         }
         self.finish_continuous_edit("채널 스트립 변경", before, signals);
         if self.recorder.is_some() {
@@ -640,6 +648,9 @@ impl SonemaApp {
     }
 
     fn request_action(&mut self, action: PendingAction) {
+        if self.recorder.is_some() {
+            self.stop_recording();
+        }
         if self.dirty {
             self.pending_action = Some(action);
         } else {
@@ -798,6 +809,9 @@ impl SonemaApp {
     }
 
     fn begin_save(&mut self, save_as: bool) -> bool {
+        if self.recorder.is_some() {
+            self.stop_recording();
+        }
         if self.saving {
             return false;
         }
@@ -835,6 +849,9 @@ impl SonemaApp {
     }
 
     fn begin_export(&mut self) {
+        if self.recorder.is_some() {
+            self.stop_recording();
+        }
         if self.exporting {
             return;
         }
@@ -1243,8 +1260,13 @@ impl SonemaApp {
     }
 
     fn close_guard(&mut self, context: &egui::Context) {
-        if context.input(|input| input.viewport().close_requested()) && self.dirty {
+        if context.input(|input| input.viewport().close_requested())
+            && (self.dirty || self.recorder.is_some())
+        {
             context.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            if self.recorder.is_some() {
+                self.stop_recording();
+            }
             if self.pending_action.is_none() && self.action_after_save.is_none() {
                 self.pending_action = Some(PendingAction::Exit);
             }
