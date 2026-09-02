@@ -38,8 +38,8 @@ crates/
 Rust stable이 필요합니다.
 
 ```bash
-cargo run -p sonema-app --release
-cargo test --workspace
+cargo run --locked -p sonema-app --release
+cargo test --locked --workspace
 ```
 
 Windows 배포 파일:

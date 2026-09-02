@@ -3,8 +3,8 @@
 ## Automated
 
 - `cargo fmt --all -- --check`
-- `cargo clippy --workspace --all-targets -- -D warnings`
-- `cargo test --workspace`
+- `cargo clippy --locked --workspace --all-targets -- -D warnings`
+- `cargo test --locked --workspace`
 - Windows release build and portable ZIP artifact
 - macOS, Windows, and Ubuntu workspace tests
 
