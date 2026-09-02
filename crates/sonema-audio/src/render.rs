@@ -270,8 +270,8 @@ pub fn render_offline(
     }
     let mut session = RealtimeSession::compile(project, media, sample_rate, false)?;
     let project_duration = project.duration_frames();
-    let output_frames = (project_duration as u128 * sample_rate as u128)
-        .div_ceil(project.sample_rate as u128);
+    let output_frames =
+        (project_duration as u128 * sample_rate as u128).div_ceil(project.sample_rate as u128);
     let output_frames = usize::try_from(output_frames)
         .map_err(|_| anyhow!("출력 파일이 이 시스템에서 처리할 수 있는 크기를 넘었습니다"))?;
     output_frames
