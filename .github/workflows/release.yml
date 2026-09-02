@@ -3,10 +3,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
-    branches: [main]
 
 permissions:
-  actions: read
   contents: write
 
 jobs:
@@ -14,18 +12,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Download verified Windows package
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          New-Item -ItemType Directory -Force -Path release | Out-Null
-          gh run download 33612399089 --repo $env:GITHUB_REPOSITORY --name Febius-Sonema-Windows-x64 --dir release
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - shell: pwsh
+        run: ./scripts/package-windows.ps1
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.1.0
-          target_commitish: ${{ github.sha }}
-          name: Febius Sonema v0.1.0
           files: release/*.zip
           generate_release_notes: true
           prerelease: true
